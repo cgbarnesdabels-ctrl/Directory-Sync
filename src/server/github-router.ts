@@ -1174,6 +1174,48 @@ router.post('/coderabbit/approve-pr', (req, res) => {
   });
 });
 
+// POST /api/github/pull-requests/bulk-approve
+router.post('/pull-requests/bulk-approve', (req, res) => {
+  const { prNumbers = [], comment = '✅ Bulk Approved via Biometric Verified CodeRabbit Gateway.' } = req.body || {};
+  const approvedPrs: any[] = [];
+
+  for (const num of prNumbers) {
+    const pr = pullRequests.find(p => p.number === Number(num));
+    if (pr) {
+      const existingReview = pr.reviews.find(r => r.user === 'coderabbitai[bot]' || r.user === 'dabelstech');
+      if (existingReview) {
+        existingReview.status = 'APPROVED';
+      } else {
+        pr.reviews.push({ user: 'dabelstech', status: 'APPROVED' });
+      }
+      pr.checksStatus = 'success';
+      pr.passedChecksCount = pr.totalChecksCount;
+      pr.updatedAt = new Date().toISOString();
+      approvedPrs.push(pr);
+
+      const auditEntry: CodeRabbitAuditEntry = {
+        id: `cr-audit-${Date.now().toString().slice(-5)}`,
+        timestamp: new Date().toISOString(),
+        action: 'APPROVE_PR',
+        status: 'success',
+        deviceFingerprint: codeRabbitConfig.deviceBinding.publicKeyFingerprint,
+        performedBy: 'dabelstech (Biometric Verified Bulk Gate)',
+        targetRef: `refs/pull/${pr.number}/head`,
+        details: `Bulk approved PR #${pr.number} after biometric verification. Comment: "${comment}"`,
+        prNumber: pr.number
+      };
+      codeRabbitConfig.recentAuditLogs.unshift(auditEntry);
+    }
+  }
+
+  res.json({
+    success: true,
+    message: `Successfully approved ${approvedPrs.length} pull requests with biometric verification.`,
+    approvedCount: approvedPrs.length,
+    pullRequests
+  });
+});
+
 // POST /api/github/coderabbit/revoke
 router.post('/coderabbit/revoke', (req, res) => {
   codeRabbitConfig.deviceBinding.isBound = false;

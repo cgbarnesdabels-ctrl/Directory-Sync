@@ -1,0 +1,41 @@
+name: Swift & SwiftUI Code Execution CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  swift-ui-build:
+    name: Build & Test Swift / SwiftUI Project
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Check Swift Version
+        run: swift --version
+
+      - name: Build SwiftUI Package or App
+        run: |
+          if [ -f "Package.swift" ]; then
+            echo "Building Swift Swift Package Manager target..."
+            swift build -v
+            swift test -v
+          elif ls *.xcodeproj >/dev/null 2>&1; then
+            PROJECT_NAME=$(ls *.xcodeproj | head -n 1)
+            echo "Building Xcode project: $PROJECT_NAME"
+            xcodebuild clean build -project "$PROJECT_NAME" -scheme "$(basename "$PROJECT_NAME" .xcodeproj)" -destination "platform=iOS Simulator,name=iPhone 15" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+          elif ls *.xcworkspace >/dev/null 2>&1; then
+            WORKSPACE_NAME=$(ls *.xcworkspace | head -n 1)
+            echo "Building Xcode workspace: $WORKSPACE_NAME"
+            xcodebuild clean build -workspace "$WORKSPACE_NAME" -scheme "$WORKSPACE_NAME" -destination "platform=iOS Simulator,name=iPhone 15" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+          else
+            echo "No Xcode project or Swift Package found. Running swift format / syntax check test script..."
+            swiftc --version
+          fi

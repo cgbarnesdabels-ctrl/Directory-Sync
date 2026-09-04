@@ -55,6 +55,58 @@ export const GitHubCiPrDashboard: React.FC = () => {
   const [isDispatching, setIsDispatching] = useState(false);
   const [isCheckingPr, setIsCheckingPr] = useState(false);
   const [copiedFile, setCopiedFile] = useState(false);
+  const [selectedPrNumbers, setSelectedPrNumbers] = useState<number[]>([]);
+  const [isBulkApproving, setIsBulkApproving] = useState(false);
+
+  const handleToggleSelectAll = () => {
+    if (selectedPrNumbers.length === pullRequests.length) {
+      setSelectedPrNumbers([]);
+    } else {
+      setSelectedPrNumbers(pullRequests.map(p => p.number));
+    }
+  };
+
+  const handleTogglePrSelect = (prNumber: number) => {
+    setSelectedPrNumbers(prev => 
+      prev.includes(prNumber) ? prev.filter(n => n !== prNumber) : [...prev, prNumber]
+    );
+  };
+
+  const handleBulkApprovePrs = async () => {
+    if (selectedPrNumbers.length === 0) return;
+    setIsBulkApproving(true);
+    try {
+      const session = await triggerSignIn(
+        connectedUser?.email || 'dabelstech@moredesa.com',
+        window.location.hostname || 'localhost'
+      );
+      
+      if (!session) {
+        setIsBulkApproving(false);
+        return;
+      }
+
+      const res = await fetch('/api/github/pull-requests/bulk-approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prNumbers: selectedPrNumbers,
+          comment: '✅ Bulk Approved via Biometric Verified CodeRabbit Gateway & OS Enclave.'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setPullRequests(data.pullRequests || []);
+        setSelectedPrNumbers([]);
+        alert(`Successfully biometric-verified and approved ${data.approvedCount} pull requests!`);
+      }
+    } catch (err) {
+      console.error('Failed to bulk approve PRs:', err);
+    } finally {
+      setIsBulkApproving(false);
+    }
+  };
 
   // GitHub OAuth & Callback State
   const [oauthConfig, setOAuthConfig] = useState<GitHubOAuthConfig | null>(null);
@@ -675,39 +727,80 @@ jobs:
       {/* Subtab 2: Pull Requests & PR Gates */}
       {activeTab === 'pull-requests' && (
         <div className="space-y-4">
-          {pullRequests.map((pr) => (
-            <div
-              key={pr.number}
-              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <GitPullRequest className="w-5 h-5 text-indigo-600" />
-                  <span className="font-mono text-sm font-bold text-slate-900">
-                    #{pr.number}
-                  </span>
-                  <span className="font-bold text-sm text-slate-900">{pr.title}</span>
-                  <span
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full font-mono ${
-                      pr.status === 'open'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-purple-50 text-purple-700 border border-purple-200'
-                    }`}
-                  >
-                    {pr.status.toUpperCase()}
-                  </span>
-                </div>
+          {/* Bulk Action Header Bar */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={pullRequests.length > 0 && selectedPrNumbers.length === pullRequests.length}
+                  onChange={handleToggleSelectAll}
+                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                />
+                <span>Select All ({pullRequests.length} PRs)</span>
+              </label>
+              <span className="text-xs text-slate-400 font-mono">
+                {selectedPrNumbers.length} selected
+              </span>
+            </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleTriggerPrCheck(pr.number)}
-                  disabled={isCheckingPr}
-                  className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isCheckingPr ? 'animate-spin' : ''}`} />
-                  <span>Re-run PR Checks</span>
-                </button>
-              </div>
+            <button
+              id="btn-bulk-approve-prs"
+              type="button"
+              onClick={handleBulkApprovePrs}
+              disabled={selectedPrNumbers.length === 0 || isBulkApproving}
+              className="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Fingerprint className="w-4 h-4 text-indigo-200" />
+              <span>
+                {isBulkApproving ? 'Verifying Biometrics & Approving...' : `Bulk Approve Selected (${selectedPrNumbers.length})`}
+              </span>
+            </button>
+          </div>
+
+          {pullRequests.map((pr) => {
+            const isSelected = selectedPrNumbers.includes(pr.number);
+            return (
+              <div
+                key={pr.number}
+                className={`bg-white rounded-2xl border p-6 shadow-xs space-y-4 transition-all ${
+                  isSelected ? 'border-indigo-500 ring-2 ring-indigo-500/10 bg-indigo-50/20' : 'border-slate-200'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleTogglePrSelect(pr.number)}
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                    />
+                    <GitPullRequest className="w-5 h-5 text-indigo-600" />
+                    <span className="font-mono text-sm font-bold text-slate-900">
+                      #{pr.number}
+                    </span>
+                    <span className="font-bold text-sm text-slate-900">{pr.title}</span>
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full font-mono ${
+                        pr.status === 'open'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-purple-50 text-purple-700 border border-purple-200'
+                      }`}
+                    >
+                      {pr.status.toUpperCase()}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerPrCheck(pr.number)}
+                    disabled={isCheckingPr}
+                    className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingPr ? 'animate-spin' : ''}`} />
+                    <span>Re-run PR Checks</span>
+                  </button>
+                </div>
 
               <p className="text-xs text-slate-600 leading-relaxed">{pr.description}</p>
 
@@ -742,7 +835,8 @@ jobs:
                 </div>
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
 
