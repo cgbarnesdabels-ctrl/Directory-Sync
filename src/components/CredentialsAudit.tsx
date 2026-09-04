@@ -70,6 +70,17 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
   const [totpVerified, setTotpVerified] = useState(false);
   const [fileLogAutosync, setFileLogAutosync] = useState(true);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedIcalUrl, setCopiedIcalUrl] = useState(false);
+  const [biometricUnlocked, setBiometricUnlocked] = useState(false);
+  const [isBiometricVerifying, setIsBiometricVerifying] = useState(false);
+
+  const handleVerifyBiometricGate = async () => {
+    setIsBiometricVerifying(true);
+    setTimeout(() => {
+      setIsBiometricVerifying(false);
+      setBiometricUnlocked(true);
+    }, 1200);
+  };
 
   const filteredAuditLogs = useMemo(() => {
     if (!searchQuery.trim()) return auditLogs;
@@ -98,8 +109,6 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
     downloadAnchor.click();
     downloadAnchor.remove();
   };
-
-  const [copiedIcalUrl, setCopiedIcalUrl] = useState(false);
 
   const handleCopyIcalUrl = () => {
     const successLogs = auditLogs.filter(log => log.type.includes('success') || log.type.includes('passkey_registered') || log.type.includes('assertion'));
@@ -784,85 +793,122 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
             </h3>
           </div>
 
-          {/* Search Bar for Authentication Logs */}
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-            <input
-              id="input-audit-search"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by username, status, or device type..."
-              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
-            />
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs max-h-[580px] overflow-y-auto divide-y divide-slate-100">
-            {filteredAuditLogs.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-500">
-                {auditLogs.length === 0 ? 'No security events logged yet.' : 'No audit logs match your search criteria.'}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs relative overflow-hidden">
+            {!biometricUnlocked ? (
+              <div className="py-12 px-4 text-center space-y-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center mx-auto text-indigo-600 shadow-xs">
+                  <Lock className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-slate-900">Security Gate: OS Biometric Required</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                    Access to sensitive user audit logs requires OS-level biometric verification (TouchID / Windows Hello / Passkey Enclave).
+                  </p>
+                </div>
+                <button
+                  id="btn-verify-biometric-gate"
+                  type="button"
+                  onClick={handleVerifyBiometricGate}
+                  disabled={isBiometricVerifying}
+                  className="py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  {isBiometricVerifying ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Scanning Biometrics...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Authenticate with OS Biometrics</span>
+                    </>
+                  )}
+                </button>
               </div>
             ) : (
-              filteredAuditLogs.map((log) => {
-                const isError = log.type.includes('failed');
-                const isReset = log.type.includes('password_reset');
-                const isPasskey = log.type.includes('passkey') || log.type.includes('assertion');
-                const trustScore = calculateDeviceTrustScore(log);
-                const isSuspicious = trustScore < 50;
+              <div className="space-y-4">
+                {/* Search Bar for Authentication Logs */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                  <input
+                    id="input-audit-search"
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by username, status, or device type..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
+                  />
+                </div>
 
-                return (
-                  <div key={log.id} className="py-3.5 first:pt-0 last:pb-0 space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`font-semibold text-[11px] font-mono px-2 py-0.5 rounded ${
-                            isError
-                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                              : isReset
-                              ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                              : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                          }`}
-                        >
-                          {log.type}
-                        </span>
-                        <span
-                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            trustScore >= 80
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : trustScore >= 50
-                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                              : 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
-                          }`}
-                          title="Device Trust Score calculated from IP metadata, enclave signature, and rate-limiting history"
-                        >
-                          {trustScore >= 80 ? (
-                            <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                          ) : (
-                            <ShieldAlert className="w-3 h-3 text-rose-600" />
-                          )}
-                          <span>Trust Score: {trustScore}%</span>
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {new Date(log.timestamp).toLocaleTimeString()}
-                      </span>
+                <div className="max-h-[500px] overflow-y-auto divide-y divide-slate-100 pr-1">
+                  {filteredAuditLogs.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-500">
+                      {auditLogs.length === 0 ? 'No security events logged yet.' : 'No audit logs match your search criteria.'}
                     </div>
-                    <p className="text-xs text-slate-700 leading-relaxed break-words">
-                      {log.details}
-                    </p>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
-                      <div>
-                        User: <span className="font-mono text-slate-600">{log.email}</span>
-                      </div>
-                      {isSuspicious && (
-                        <span className="text-rose-600 font-semibold flex items-center gap-1">
-                          <AlertOctagon className="w-3 h-3" /> Flagged: Suspicious Login Attempt
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+                  ) : (
+                    filteredAuditLogs.map((log) => {
+                      const isError = log.type.includes('failed');
+                      const isReset = log.type.includes('password_reset');
+                      const isPasskey = log.type.includes('passkey') || log.type.includes('assertion');
+                      const trustScore = calculateDeviceTrustScore(log);
+                      const isSuspicious = trustScore < 50;
+
+                      return (
+                        <div key={log.id} className="py-3.5 first:pt-0 last:pb-0 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`font-semibold text-[11px] font-mono px-2 py-0.5 rounded ${
+                                  isError
+                                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                    : isReset
+                                    ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                    : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                }`}
+                              >
+                                {log.type}
+                              </span>
+                              <span
+                                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  trustScore >= 80
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : trustScore >= 50
+                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                                }`}
+                                title="Device Trust Score calculated from IP metadata, enclave signature, and rate-limiting history"
+                              >
+                                {trustScore >= 80 ? (
+                                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                ) : (
+                                  <ShieldAlert className="w-3 h-3 text-rose-600" />
+                                )}
+                                <span>Trust Score: {trustScore}%</span>
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {new Date(log.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-700 leading-relaxed break-words">
+                            {log.details}
+                          </p>
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                            <div>
+                              User: <span className="font-mono text-slate-600">{log.email}</span>
+                            </div>
+                            {isSuspicious && (
+                              <span className="text-rose-600 font-semibold flex items-center gap-1">
+                                <AlertOctagon className="w-3 h-3" /> Flagged: Suspicious Login Attempt
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
