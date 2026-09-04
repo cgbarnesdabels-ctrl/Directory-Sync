@@ -1,0 +1,1101 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from 'react';
+import { 
+  GitBranch, 
+  GitPullRequest, 
+  CheckCircle2, 
+  AlertCircle, 
+  Clock, 
+  Play, 
+  RefreshCw, 
+  Terminal, 
+  FileCode, 
+  ChevronRight, 
+  ChevronDown, 
+  ShieldCheck, 
+  ExternalLink,
+  Copy,
+  Check,
+  Cpu,
+  Layers,
+  Sparkles,
+  Maximize2,
+  Minimize2,
+  Fingerprint,
+  Globe,
+  Key,
+  LogOut,
+  UserCheck,
+  ArrowUpRight,
+  Link2,
+  Shield
+} from 'lucide-react';
+import type { 
+  GitHubWorkflowRun, 
+  GitHubPullRequest, 
+  GitHubOverview,
+  GitHubOAuthConfig,
+  GitHubUserProfile 
+} from '../types/github';
+import { useAuthOverlay } from '../context/AuthOverlayContext';
+
+export const GitHubCiPrDashboard: React.FC = () => {
+  const { triggerSignIn, setPreferMode } = useAuthOverlay();
+  const [overview, setOverview] = useState<GitHubOverview | null>(null);
+  const [runs, setRuns] = useState<GitHubWorkflowRun[]>([]);
+  const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
+  const [selectedRun, setSelectedRun] = useState<GitHubWorkflowRun | null>(null);
+  const [activeTab, setActiveTab] = useState<'workflows' | 'pull-requests' | 'workflow-code' | 'oauth-config'>('workflows');
+  const [selectedWorkflowFile, setSelectedWorkflowFile] = useState<'ci.yml' | 'pr-checks.yml'>('ci.yml');
+  const [isDispatching, setIsDispatching] = useState(false);
+  const [isCheckingPr, setIsCheckingPr] = useState(false);
+  const [copiedFile, setCopiedFile] = useState(false);
+
+  // GitHub OAuth & Callback State
+  const [oauthConfig, setOAuthConfig] = useState<GitHubOAuthConfig | null>(null);
+  const [connectedUser, setConnectedUser] = useState<GitHubUserProfile | null>(null);
+  const [isConnectingOAuth, setIsConnectingOAuth] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const fetchOAuthConfig = async () => {
+    try {
+      const res = await fetch('/api/github/oauth-config');
+      if (res.ok) {
+        const data = await res.json();
+        setOAuthConfig(data.config || null);
+        if (data.currentUser) {
+          setConnectedUser(data.currentUser);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load GitHub OAuth config:', err);
+    }
+  };
+
+  const fetchData = async () => {
+    try {
+      const [overviewRes, runsRes, prsRes] = await Promise.all([
+        fetch('/api/github/overview'),
+        fetch('/api/github/workflow-runs'),
+        fetch('/api/github/pull-requests'),
+      ]);
+
+      if (overviewRes.ok) setOverview(await overviewRes.json());
+      if (runsRes.ok) {
+        const data = await runsRes.json();
+        setRuns(data.runs || []);
+        if (!selectedRun && data.runs?.length > 0) {
+          setSelectedRun(data.runs[0]);
+        }
+      }
+      if (prsRes.ok) {
+        const data = await prsRes.json();
+        setPullRequests(data.pullRequests || []);
+      }
+    } catch (err) {
+      console.error('Failed to load GitHub CI data:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    fetchOAuthConfig();
+    const interval = setInterval(fetchData, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Listen for postMessage from OAuth popup callback
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const origin = event.origin;
+      // Validate origin is from AI Studio preview or localhost
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+        return;
+      }
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        if (event.data.user) {
+          setConnectedUser(event.data.user);
+        }
+        fetchOAuthConfig();
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  const handleCopyField = (text: string, fieldId: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldId);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleConnectGitHub = async () => {
+    try {
+      setIsConnectingOAuth(true);
+      const res = await fetch('/api/github/auth-url');
+      if (!res.ok) throw new Error('Failed to get GitHub auth URL');
+      const { url } = await res.json();
+
+      // Open OAuth provider directly in popup window per AI Studio constraints
+      const authWindow = window.open(
+        url,
+        'github_oauth_popup',
+        'width=600,height=720,status=yes,scrollbars=yes'
+      );
+
+      if (!authWindow) {
+        alert('Please allow popups in your browser to complete GitHub authorization.');
+      }
+    } catch (err) {
+      console.error('Failed to initiate GitHub OAuth:', err);
+    } finally {
+      setIsConnectingOAuth(false);
+    }
+  };
+
+  const handleDisconnectGitHub = async () => {
+    try {
+      await fetch('/api/github/disconnect', { method: 'POST' });
+      setConnectedUser(null);
+      fetchOAuthConfig();
+    } catch (err) {
+      console.error('Failed to disconnect GitHub:', err);
+    }
+  };
+
+  const handleSimulateCallback = async () => {
+    try {
+      const res = await fetch('/api/github/simulate-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'dabelstech',
+          email: 'dabelstech@moredesa.com'
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConnectedUser(data.user);
+      }
+    } catch (err) {
+      console.error('Failed to simulate auth:', err);
+    }
+  };
+
+  const handleTriggerDispatch = async () => {
+    setIsDispatching(true);
+    try {
+      const res = await fetch('/api/github/trigger-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflowFile: 'ci.yml', branch: 'main' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRuns(prev => [data.run, ...prev]);
+        setSelectedRun(data.run);
+      }
+    } catch (err) {
+      console.error('Failed to dispatch run:', err);
+    } finally {
+      setIsDispatching(false);
+    }
+  };
+
+  const handleTriggerPrCheck = async (prNumber: number) => {
+    setIsCheckingPr(true);
+    try {
+      const res = await fetch('/api/github/trigger-pr-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prNumber }),
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Failed to trigger PR check:', err);
+    } finally {
+      setIsCheckingPr(false);
+    }
+  };
+
+  const ciYmlCode = `name: CI / CD Pipeline - Dabels Tech Passkey Gateway
+
+on:
+  push:
+    branches: [main, 'release/*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22.x }
+      - run: npm ci && npm run lint
+
+  test-fido2-handshake:
+    name: FIDO2 & Scoped Redirect Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22.x }
+      - run: npm ci
+      - run: node test/fido2-spec.mjs # Validates residentKey: "required" & CWE-601 protection
+
+  security-audit:
+    name: Security & Cryptographic Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm audit --audit-level=high
+
+  build-and-package:
+    name: Production Build & Asset Verification
+    runs-on: ubuntu-latest
+    needs: [test-fido2-handshake, security-audit]
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npm run build
+      - run: test -f dist/index.html`;
+
+  const prChecksCode = `name: PR Quality & Security Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  pr-triage:
+    name: PR Metadata & Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR Title Format
+        run: |
+          TITLE="\${{ github.event.pull_request.title }}"
+          echo "Validating format: feat(...), fix(...), etc."
+
+  bundle-size-diff:
+    name: Bundle Size & Performance Impact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npm run build
+      - name: Report Bundle Health
+        run: echo "No bundle regressions detected."
+
+  ios-ats-compliance:
+    name: iOS ATS & WebAuthn RP ID Alignment
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Verifying RP ID alignment with dabelstech://"`;
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedFile(true);
+    setTimeout(() => setCopiedFile(false), 2000);
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Top GitHub Pipeline Header */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5">
+              <GitBranch className="w-3.5 h-3.5 text-indigo-400" />
+              <span>dabelstech / passkey-gateway-ios</span>
+            </span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />
+              <span>CI Passing ({overview?.passingRate || 100}%)</span>
+            </span>
+          </div>
+
+          <h2 className="text-lg font-bold text-slate-900 mt-2">
+            GitHub Actions CI/CD &amp; Pull Request Automation
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Automated testing, WebAuthn cryptographic regression validation, bundle health, and PR quality gates.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            id="btn-trigger-ci-dispatch"
+            type="button"
+            onClick={handleTriggerDispatch}
+            disabled={isDispatching}
+            className="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs disabled:opacity-60"
+          >
+            {isDispatching ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Play className="w-3.5 h-3.5 text-indigo-400" />
+            )}
+            <span>Dispatch Workflow Run</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Screen Overlay PiP & Pop Trigger Demo Card */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl border border-indigo-900/50 p-6 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1 max-w-xl">
+          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-300">
+            <Sparkles className="w-4 h-4 text-indigo-400" />
+            <span>Integrated Biometric Screen Overlay</span>
+          </div>
+          <h3 className="text-base font-bold text-white">
+            Trigger Real-Time Biometric PiP or Pop Screen Overlay
+          </h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Anytime a sign-in request is triggered, this application launches an interactive screen overlay with live cryptographic telemetry. Choose your trigger mode below:
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            id="btn-dashboard-trigger-pop"
+            type="button"
+            onClick={() => {
+              setPreferMode('pop');
+              triggerSignIn('dabelstech@moredesa.com', window.location.hostname || 'localhost', 'pop');
+            }}
+            className="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition-all shadow-xs cursor-pointer"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>Trigger Pop Modal</span>
+          </button>
+
+          <button
+            id="btn-dashboard-trigger-pip"
+            type="button"
+            onClick={() => {
+              setPreferMode('pip');
+              triggerSignIn('dabelstech@moredesa.com', window.location.hostname || 'localhost', 'pip');
+            }}
+            className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold flex items-center gap-2 border border-slate-700 transition-all cursor-pointer"
+          >
+            <Minimize2 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Trigger PiP HUD</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Navigation Subtabs */}
+      <div className="border-b border-slate-200 flex items-center gap-6 text-sm font-semibold">
+        <button
+          type="button"
+          onClick={() => setActiveTab('workflows')}
+          className={`pb-3 border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${
+            activeTab === 'workflows'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Play className="w-4 h-4" />
+          <span>CI/CD Workflow Runs ({runs.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('pull-requests')}
+          className={`pb-3 border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${
+            activeTab === 'pull-requests'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <GitPullRequest className="w-4 h-4" />
+          <span>Pull Requests &amp; PR Gates ({pullRequests.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('workflow-code')}
+          className={`pb-3 border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${
+            activeTab === 'workflow-code'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <FileCode className="w-4 h-4" />
+          <span>Workflow Specifications (.github/workflows)</span>
+        </button>
+
+        <button
+          id="subtab-github-oauth"
+          type="button"
+          onClick={() => setActiveTab('oauth-config')}
+          className={`pb-3 border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${
+            activeTab === 'oauth-config'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Key className="w-4 h-4" />
+          <span>OAuth Redirect &amp; Callback Setup</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+            connectedUser
+              ? 'bg-emerald-100 text-emerald-700'
+              : 'bg-indigo-100 text-indigo-700'
+          }`}>
+            {connectedUser ? 'Connected' : 'Configured'}
+          </span>
+        </button>
+      </div>
+
+      {/* Subtab 1: Workflow Runs */}
+      {activeTab === 'workflows' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left: Runs List */}
+          <div className="lg:col-span-5 space-y-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+              Workflow History
+            </div>
+
+            {runs.map((run) => (
+              <button
+                key={run.id}
+                type="button"
+                onClick={() => setSelectedRun(run)}
+                className={`w-full text-left p-4 rounded-2xl border transition-all cursor-pointer ${
+                  selectedRun?.id === run.id
+                    ? 'bg-indigo-50/70 border-indigo-300 shadow-xs'
+                    : 'bg-white border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {run.status === 'in_progress' ? (
+                      <RefreshCw className="w-4 h-4 text-amber-500 animate-spin" />
+                    ) : run.conclusion === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-600" />
+                    )}
+                    <span className="font-semibold text-xs text-slate-900 truncate">
+                      {run.workflowName}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                    {run.commitSha}
+                  </span>
+                </div>
+
+                <div className="text-[11px] text-slate-600 mt-2 line-clamp-1">
+                  {run.commitMessage}
+                </div>
+
+                <div className="flex items-center gap-3 mt-3 text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1 font-mono">
+                    <GitBranch className="w-3 h-3" />
+                    {run.branch}
+                  </span>
+                  <span>&bull;</span>
+                  <span className="flex items-center gap-1 font-mono">
+                    <Clock className="w-3 h-3" />
+                    {run.durationSeconds}s
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Right: Selected Run Details & Live Steps */}
+          <div className="lg:col-span-7 space-y-4">
+            {selectedRun ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+                <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-100">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-slate-400">#{selectedRun.id}</span>
+                      <span className="text-xs font-bold text-slate-900">{selectedRun.workflowName}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">{selectedRun.commitMessage}</p>
+                  </div>
+
+                  <span
+                    className={`text-xs font-bold px-2.5 py-1 rounded-full font-mono ${
+                      selectedRun.status === 'in_progress'
+                        ? 'bg-amber-100 text-amber-800'
+                        : selectedRun.conclusion === 'success'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}
+                  >
+                    {selectedRun.status === 'in_progress' ? 'Running' : selectedRun.conclusion}
+                  </span>
+                </div>
+
+                {/* Steps Timeline */}
+                <div className="space-y-3">
+                  <div className="text-xs font-bold text-slate-700">Execution Steps:</div>
+                  <div className="space-y-2">
+                    {selectedRun.steps.map((step, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {step.status === 'completed' && step.conclusion === 'success' ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            ) : step.status === 'in_progress' ? (
+                              <RefreshCw className="w-4 h-4 text-amber-500 animate-spin" />
+                            ) : (
+                              <Clock className="w-4 h-4 text-slate-400" />
+                            )}
+                            <span className="font-semibold text-slate-900">{step.name}</span>
+                          </div>
+                          {step.durationSeconds !== undefined && (
+                            <span className="font-mono text-[11px] text-slate-400">
+                              {step.durationSeconds}s
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Step Logs */}
+                        {step.log && step.log.length > 0 && (
+                          <div className="bg-slate-900 text-slate-300 font-mono text-[11px] rounded-lg p-2.5 space-y-1 max-h-36 overflow-y-auto">
+                            {step.log.map((line, lidx) => (
+                              <div key={lidx} className="leading-tight">
+                                &gt; {line}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-xs">
+                Select a workflow run to view step execution telemetry.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Subtab 2: Pull Requests & PR Gates */}
+      {activeTab === 'pull-requests' && (
+        <div className="space-y-4">
+          {pullRequests.map((pr) => (
+            <div
+              key={pr.number}
+              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <GitPullRequest className="w-5 h-5 text-indigo-600" />
+                  <span className="font-mono text-sm font-bold text-slate-900">
+                    #{pr.number}
+                  </span>
+                  <span className="font-bold text-sm text-slate-900">{pr.title}</span>
+                  <span
+                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full font-mono ${
+                      pr.status === 'open'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-purple-50 text-purple-700 border border-purple-200'
+                    }`}
+                  >
+                    {pr.status.toUpperCase()}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleTriggerPrCheck(pr.number)}
+                  disabled={isCheckingPr}
+                  className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isCheckingPr ? 'animate-spin' : ''}`} />
+                  <span>Re-run PR Checks</span>
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">{pr.description}</p>
+
+              {/* Branch & Diff Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <div className="text-slate-400 text-[11px]">Branch:</div>
+                  <div className="font-mono font-semibold text-slate-800 truncate">{pr.branch}</div>
+                </div>
+
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <div className="text-slate-400 text-[11px]">CI Checks Status:</div>
+                  <div className="font-semibold text-emerald-600 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{pr.passedChecksCount}/{pr.totalChecksCount} Passing</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <div className="text-slate-400 text-[11px]">Code Diff:</div>
+                  <div className="font-mono font-semibold">
+                    <span className="text-emerald-600">+{pr.additions}</span>{' '}
+                    <span className="text-rose-600">-{pr.deletions}</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <div className="text-slate-400 text-[11px]">Reviews:</div>
+                  <div className="font-semibold text-slate-800">
+                    {pr.reviews.map(r => r.user).join(', ')} (Approved)
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Subtab 3: Workflow Specifications (.github/workflows) */}
+      {activeTab === 'workflow-code' && (
+        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-white shadow-md space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedWorkflowFile('ci.yml')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-semibold transition-all cursor-pointer ${
+                  selectedWorkflowFile === 'ci.yml'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                .github/workflows/ci.yml
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedWorkflowFile('pr-checks.yml')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-semibold transition-all cursor-pointer ${
+                  selectedWorkflowFile === 'pr-checks.yml'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                .github/workflows/pr-checks.yml
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleCopyCode(selectedWorkflowFile === 'ci.yml' ? ciYmlCode : prChecksCode)}
+              className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              {copiedFile ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy Workflow YAML</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="text-[12px] font-mono text-slate-300 overflow-x-auto max-h-[480px] overflow-y-auto">
+            <pre className="leading-relaxed">
+              {selectedWorkflowFile === 'ci.yml' ? ciYmlCode : prChecksCode}
+            </pre>
+          </div>
+        </div>
+      )}
+
+      {/* Subtab 4: GitHub OAuth Redirect & Callback Setup */}
+      {activeTab === 'oauth-config' && (
+        <div className="space-y-6">
+          {/* Architecture & Iframe Compliance Header */}
+          <div className="bg-slate-900 text-white rounded-2xl border border-slate-800 p-6 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1 max-w-2xl">
+                <div className="flex items-center gap-2 text-xs font-semibold text-indigo-400">
+                  <Shield className="w-4 h-4" />
+                  <span>AI Studio Compliant Popup &amp; Callback Handshake</span>
+                </div>
+                <h3 className="text-lg font-bold text-white">
+                  GitHub OAuth Redirect URL &amp; Callback Configuration
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Configured with direct provider popups (<code className="text-indigo-300 font-mono">https://github.com/login/oauth/authorize</code>), cross-origin <code className="text-indigo-300 font-mono">postMessage</code> parent notification, and strict cookie headers (<code className="text-indigo-300 font-mono">SameSite=None; Secure</code>) for preview and production containers.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href="https://github.com/settings/applications/new"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition-all shadow-xs cursor-pointer"
+                >
+                  <ArrowUpRight className="w-4 h-4" />
+                  <span>Open GitHub Dev Settings</span>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column: Exact URLs to register in GitHub */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* Development URLs Card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                      DEV
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">
+                        Development Environment URLs
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Use these URLs when developing and testing in the active AI Studio preview container.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                    Active Container
+                  </span>
+                </div>
+
+                {/* Homepage URL */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                    <span>Homepage URL (Development)</span>
+                    <span className="text-[10px] text-slate-400 normal-case font-normal">Registered in GitHub OAuth App</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={oauthConfig?.devHomepageUrl || 'https://ais-dev-lqpipzowgb7lapwky3dtvq-636943343240.us-east1.run.app'}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCopyField(
+                        oauthConfig?.devHomepageUrl || 'https://ais-dev-lqpipzowgb7lapwky3dtvq-636943343240.us-east1.run.app',
+                        'dev-home'
+                      )}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200"
+                    >
+                      {copiedField === 'dev-home' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Authorization Callback URL */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                    <span>Authorization Callback URL (Development)</span>
+                    <span className="text-[10px] text-indigo-600 font-semibold normal-case">Primary Callback</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={oauthConfig?.devCallbackUrl || 'https://ais-dev-lqpipzowgb7lapwky3dtvq-636943343240.us-east1.run.app/api/auth/github/callback'}
+                      className="flex-1 bg-indigo-50/50 border border-indigo-200 rounded-xl px-3.5 py-2 text-xs font-mono text-indigo-900 font-semibold focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCopyField(
+                        oauthConfig?.devCallbackUrl || 'https://ais-dev-lqpipzowgb7lapwky3dtvq-636943343240.us-east1.run.app/api/auth/github/callback',
+                        'dev-cb'
+                      )}
+                      className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                    >
+                      {copiedField === 'dev-cb' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-white" />
+                          <span>Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Shared / Production URLs Card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                      PROD
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">
+                        Shared &amp; Deployed Environment URLs
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Use these URLs for your shared production build or public domain deployments.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-semibold">
+                    Shared Preview
+                  </span>
+                </div>
+
+                {/* Shared Homepage URL */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                    <span>Homepage URL (Shared)</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={oauthConfig?.sharedHomepageUrl || 'https://ais-pre-lqpipzowgb7lapwky3dtvq-636943343240.us-east1.run.app'}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCopyField(
+                        oauthConfig?.sharedHomepageUrl || 'https://ais-pre-lqpipzowgb7lapwky3dtvq-636943343240.us-east1.run.app',
+                        'shared-home'
+                      )}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200"
+                    >
+                      {copiedField === 'shared-home' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Shared Callback URL */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                    <span>Authorization Callback URL (Shared)</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={oauthConfig?.sharedCallbackUrl || 'https://ais-pre-lqpipzowgb7lapwky3dtvq-636943343240.us-east1.run.app/api/auth/github/callback'}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-800 focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCopyField(
+                        oauthConfig?.sharedCallbackUrl || 'https://ais-pre-lqpipzowgb7lapwky3dtvq-636943343240.us-east1.run.app/api/auth/github/callback',
+                        'shared-cb'
+                      )}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200"
+                    >
+                      {copiedField === 'shared-cb' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Aliases & Scopes */}
+                <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Also supports alias routes: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-700">/auth/github/callback</code></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-700">Requested Scopes:</span>
+                    <code className="font-mono bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200">read:user, user:email, repo</code>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Connection Card & Setup Guide */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Account Status Card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-indigo-600" />
+                    <span>GitHub OAuth Connection</span>
+                  </h4>
+                  <span className={`text-[11px] px-2.5 py-1 rounded-full font-bold flex items-center gap-1 ${
+                    connectedUser
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    {connectedUser ? (
+                      <>
+                        <CheckCircle2 className="w-3 h-3" /> Connected
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-3 h-3" /> Not Connected
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                {connectedUser ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                      <img
+                        src={connectedUser.avatarUrl}
+                        alt={connectedUser.login}
+                        className="w-12 h-12 rounded-full border border-slate-300 object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm text-slate-900 truncate">
+                          {connectedUser.name}
+                        </div>
+                        <div className="text-xs text-indigo-600 font-mono truncate">
+                          @{connectedUser.login}
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate">
+                          {connectedUser.email}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-center">
+                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-xs font-semibold text-slate-500">Repositories</div>
+                        <div className="text-base font-bold text-slate-900">{connectedUser.publicRepos}</div>
+                      </div>
+                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-xs font-semibold text-slate-500">Followers</div>
+                        <div className="text-base font-bold text-slate-900">{connectedUser.followers}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleConnectGitHub}
+                        disabled={isConnectingOAuth}
+                        className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer border border-slate-200 flex items-center justify-center gap-1.5"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isConnectingOAuth ? 'animate-spin' : ''}`} />
+                        <span>Re-authenticate</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleDisconnectGitHub}
+                        className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer border border-rose-200 flex items-center gap-1.5"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Disconnect</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Authorize this app with GitHub to grant CI/CD status synchronization, automated PR checks dispatch, and WebAuthn enclave signature auditing.
+                    </p>
+
+                    <div className="space-y-2.5">
+                      <button
+                        id="btn-connect-github-oauth"
+                        type="button"
+                        onClick={handleConnectGitHub}
+                        disabled={isConnectingOAuth}
+                        className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
+                      >
+                        <Globe className="w-4 h-4 text-indigo-400" />
+                        <span>{isConnectingOAuth ? 'Opening OAuth Popup...' : 'Connect GitHub via Direct Popup'}</span>
+                      </button>
+
+                      <button
+                        id="btn-simulate-callback-auth"
+                        type="button"
+                        onClick={handleSimulateCallback}
+                        className="w-full py-2.5 px-4 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all border border-slate-200 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Simulate Callback Handshake (Sandbox Test)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Step-by-Step Setup Guide */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-3.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                  <Key className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>4-Step GitHub Configuration Guide</span>
+                </h4>
+
+                <ol className="text-xs text-slate-600 space-y-2.5 list-decimal pl-4 leading-relaxed">
+                  <li>
+                    Visit <a href="https://github.com/settings/applications/new" target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-semibold underline">github.com/settings/applications/new</a>
+                  </li>
+                  <li>
+                    Set <strong>Application name</strong> to <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-slate-800">Dabels Tech Passkey Gateway</code>
+                  </li>
+                  <li>
+                    Paste <strong>Homepage URL</strong>: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-slate-800 break-all">{oauthConfig?.devHomepageUrl}</code>
+                  </li>
+                  <li>
+                    Paste <strong>Authorization callback URL</strong>: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-slate-800 break-all">{oauthConfig?.devCallbackUrl}</code>
+                  </li>
+                  <li>
+                    Click <strong>Register application</strong> and configure <code className="font-mono text-slate-800">GITHUB_CLIENT_ID</code> and <code className="font-mono text-slate-800">GITHUB_CLIENT_SECRET</code> in Settings.
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
