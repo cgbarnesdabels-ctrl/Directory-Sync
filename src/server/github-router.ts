@@ -532,6 +532,54 @@ router.post('/trigger-run', (req, res) => {
   });
 });
 
+// POST /api/github/retry-run
+router.post('/retry-run', (req, res) => {
+  const { runId } = req.body || {};
+  const run = workflowRuns.find(r => r.id === runId);
+
+  if (!run) {
+    return res.status(404).json({ error: 'Workflow run not found' });
+  }
+
+  // Reset run state to simulate retry
+  run.status = 'in_progress';
+  delete run.conclusion;
+  run.createdAt = new Date().toISOString();
+  run.durationSeconds = 0;
+  run.steps.forEach(step => {
+    step.status = 'queued';
+    delete step.conclusion;
+    delete step.durationSeconds;
+    step.log = ['Waiting for retry initialization...'];
+  });
+
+  // Simulate completion over a few seconds
+  setTimeout(() => {
+    const r = workflowRuns.find(r => r.id === runId);
+    if (r) {
+      r.status = 'completed';
+      r.conclusion = 'success';
+      r.completedAt = new Date().toISOString();
+      r.durationSeconds = 32;
+      r.steps.forEach(step => {
+        step.status = 'completed';
+        step.conclusion = 'success';
+        step.durationSeconds = Math.floor(Math.random() * 5) + 5;
+        step.log = [
+          `Step "${step.name}" retried and executed successfully.`,
+          'Biometric gate verified for re-run authorization.'
+        ];
+      });
+    }
+  }, 3500);
+
+  res.json({
+    success: true,
+    message: `Initiated retry for workflow run #${runId}`,
+    run
+  });
+});
+
 // 4. GET /api/github/pull-requests
 router.get('/pull-requests', (req, res) => {
   res.json({ pullRequests });

@@ -38,7 +38,8 @@ import {
   Search,
   Code,
   MonitorPlay,
-  Zap
+  Zap,
+  RotateCcw
 } from 'lucide-react';
 import type { 
   GitHubWorkflowRun, 
@@ -70,6 +71,7 @@ export const GitHubCiPrDashboard: React.FC = () => {
   const [keepDeviceLive, setKeepDeviceLive] = useState(false);
   const [wakeLock, setWakeLock] = useState<any>(null);
   const [isBotAutoFixing, setIsBotAutoFixing] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Screen Wake Lock Effect
   useEffect(() => {
@@ -356,6 +358,40 @@ export const GitHubCiPrDashboard: React.FC = () => {
       console.error('Bot auto-fix failed:', err);
     } finally {
       setIsBotAutoFixing(false);
+    }
+  };
+
+  const handleRetryRun = async (runId: string) => {
+    setIsRetrying(true);
+    try {
+      // Step 1: Initiate Biometric Authorization Flow
+      const session = await triggerSignIn(
+        connectedUser?.email || 'dabelstech@moredesa.com',
+        window.location.hostname || 'localhost'
+      );
+      
+      if (!session) {
+        setIsRetrying(false);
+        return;
+      }
+
+      // Step 2: Trigger Restart Request
+      const res = await fetch('/api/github/retry-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Update runs list and selected run
+        setRuns(prev => prev.map(r => r.id === runId ? data.run : r));
+        setSelectedRun(data.run);
+      }
+    } catch (err) {
+      console.error('Failed to retry run:', err);
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -802,6 +838,22 @@ jobs:
                   >
                     {selectedRun.status === 'in_progress' ? 'Running' : selectedRun.conclusion}
                   </span>
+
+                  {selectedRun.status === 'completed' && selectedRun.conclusion === 'failure' && (
+                    <button
+                      type="button"
+                      onClick={() => handleRetryRun(selectedRun.id)}
+                      disabled={isRetrying}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer disabled:opacity-60"
+                    >
+                      {isRetrying ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <RotateCcw className="w-3 h-3" />
+                      )}
+                      <span>RETRY RUN</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Steps Timeline */}
