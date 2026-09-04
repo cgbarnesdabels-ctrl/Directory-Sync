@@ -36,7 +36,9 @@ import {
   Bug,
   Activity,
   Search,
-  Code
+  Code,
+  MonitorPlay,
+  Zap
 } from 'lucide-react';
 import type { 
   GitHubWorkflowRun, 
@@ -65,6 +67,42 @@ export const GitHubCiPrDashboard: React.FC = () => {
   const [webhookLogs, setWebhookLogs] = useState<GitHubWebhookLog[]>([]);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [isSimulatingWebhook, setIsSimulatingWebhook] = useState(false);
+  const [keepDeviceLive, setKeepDeviceLive] = useState(false);
+  const [wakeLock, setWakeLock] = useState<any>(null);
+
+  // Screen Wake Lock Effect
+  useEffect(() => {
+    const toggleWakeLock = async () => {
+      if (keepDeviceLive) {
+        try {
+          if ('wakeLock' in navigator) {
+            // @ts-ignore
+            const lock = await navigator.wakeLock.request('screen');
+            setWakeLock(lock);
+          }
+        } catch (err) {
+          console.error('Wake Lock request failed:', err);
+        }
+      } else {
+        if (wakeLock) {
+          try {
+            await wakeLock.release();
+          } catch (e) {}
+          setWakeLock(null);
+        }
+      }
+    };
+
+    toggleWakeLock();
+
+    return () => {
+      if (wakeLock) {
+        try {
+          wakeLock.release();
+        } catch (e) {}
+      }
+    };
+  }, [keepDeviceLive]);
 
   const handleToggleSelectAll = () => {
     if (selectedPrNumbers.length === pullRequests.length) {
@@ -1399,6 +1437,25 @@ jobs:
                 >
                   <RefreshCw className="w-4 h-4" />
                   <span>Refresh Logs</span>
+                </button>
+
+                <div className="h-8 w-px bg-white/20 mx-1 hidden sm:block" />
+
+                <button
+                  type="button"
+                  onClick={() => setKeepDeviceLive(!keepDeviceLive)}
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all border cursor-pointer ${
+                    keepDeviceLive 
+                      ? 'bg-emerald-500 text-white border-emerald-400 shadow-lg shadow-emerald-500/20' 
+                      : 'bg-white/10 hover:bg-white/20 text-white border-white/10'
+                  }`}
+                >
+                  {keepDeviceLive ? (
+                    <Zap className="w-4 h-4 fill-current animate-pulse text-amber-300" />
+                  ) : (
+                    <MonitorPlay className="w-4 h-4" />
+                  )}
+                  <span>{keepDeviceLive ? 'Device Live: ACTIVE' : 'Keep Device Live'}</span>
                 </button>
               </div>
             </div>
