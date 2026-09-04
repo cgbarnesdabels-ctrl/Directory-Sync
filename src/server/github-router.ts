@@ -410,6 +410,12 @@ let connectedRepoInfo = {
   latestCommitStatus: 'success' as 'success' | 'pending' | 'failure' | 'error'
 };
 
+// Security Allow-list Configuration
+let allowedUrls: string[] = [
+  'https://github.com',
+  'https://ais-dev-lqpipzowgb7lapwky3dtvq-636943343240.us-east1.run.app/'
+];
+
 // SSO Enrollment Store
 interface SSOEnrollment {
   id: string;
@@ -601,6 +607,41 @@ router.post('/retry-run', (req, res) => {
     message: `Initiated retry for workflow run #${runId}`,
     run
   });
+});
+
+// POST /api/github/retry-all
+router.post('/retry-all', (req, res) => {
+  // Retry all failed or queued runs
+  const runsToRetry = workflowRuns.filter(r => r.conclusion === 'failure' || r.status === 'queued' || r.status === 'failed');
+  
+  runsToRetry.forEach(run => {
+    run.status = 'in_progress';
+    delete run.conclusion;
+    run.createdAt = new Date().toISOString();
+    run.durationSeconds = 0;
+    run.steps.forEach(step => {
+      step.status = 'queued';
+      delete step.conclusion;
+      delete step.durationSeconds;
+    });
+
+    setTimeout(() => {
+      run.status = 'completed';
+      run.conclusion = 'success';
+      run.completedAt = new Date().toISOString();
+    }, 2000 + Math.random() * 2000);
+  });
+
+  res.json({
+    success: true,
+    message: `Bulk retry initiated for ${runsToRetry.length} workflow runs.`,
+    count: runsToRetry.length
+  });
+});
+
+// GET /api/github/allow-list
+router.get('/allow-list', (req, res) => {
+  res.json({ allowedUrls });
 });
 
 // 4. GET /api/github/pull-requests

@@ -27,6 +27,7 @@ import { GitHubCiPrDashboard } from './components/GitHubCiPrDashboard';
 import { BiometricScreenOverlay } from './components/BiometricScreenOverlay';
 import { FloatingAuthCiWidget } from './components/FloatingAuthCiWidget';
 import { AuthOverlayProvider } from './context/AuthOverlayContext';
+import { ToastProvider } from './context/ToastContext';
 import type { UserSession, RegisteredPasskey } from './types/auth';
 
 export default function App() {
@@ -89,8 +90,9 @@ export default function App() {
   };
 
   return (
-    <AuthOverlayProvider>
-      <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
+    <ToastProvider>
+      <AuthOverlayProvider>
+        <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
         {/* Top Application Header */}
         <Header
           currentRpId={currentRpId}
@@ -252,5 +254,6 @@ export default function App() {
         </footer>
       </div>
     </AuthOverlayProvider>
+  </ToastProvider>
   );
 }

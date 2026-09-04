@@ -51,10 +51,12 @@ import type {
   SSOEnrollment
 } from '../types/github';
 import { useAuthOverlay } from '../context/AuthOverlayContext';
+import { useToast } from '../context/ToastContext';
 import { CodeRabbitDeviceBinding } from './CodeRabbitDeviceBinding';
 
 export const GitHubCiPrDashboard: React.FC = () => {
   const { triggerSignIn, setPreferMode } = useAuthOverlay();
+  const { showToast } = useToast();
   const [overview, setOverview] = useState<GitHubOverview | null>(null);
   const [runs, setRuns] = useState<GitHubWorkflowRun[]>([]);
   const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
@@ -73,6 +75,8 @@ export const GitHubCiPrDashboard: React.FC = () => {
   const [wakeLock, setWakeLock] = useState<any>(null);
   const [isBotAutoFixing, setIsBotAutoFixing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isBulkRetrying, setIsBulkRetrying] = useState(false);
+  const [allowedUrls, setAllowedUrls] = useState<string[]>([]);
   const [ssoEnrollments, setSsoEnrollments] = useState<SSOEnrollment[]>([]);
   const [isEnrollingSso, setIsEnrollingSso] = useState(false);
 
@@ -151,7 +155,15 @@ export const GitHubCiPrDashboard: React.FC = () => {
         const data = await res.json();
         setPullRequests(data.pullRequests || []);
         setSelectedPrNumbers([]);
-        alert(`Successfully biometric-verified and approved ${data.approvedCount} pull requests!`);
+        
+        showToast({
+          type: 'success',
+          message: `Biometric-verified and approved ${data.approvedCount} pull request(s) via security gateway.`,
+          link: {
+            label: 'View PR on GitHub',
+            url: `https://github.com/dabelstech-creator/Fluffy-octo-succotash/pulls`
+          }
+        });
       }
     } catch (err) {
       console.error('Failed to bulk approve PRs:', err);
@@ -211,6 +223,12 @@ export const GitHubCiPrDashboard: React.FC = () => {
       if (ssoRes.ok) {
         const data = await ssoRes.json();
         setSsoEnrollments(data.enrollments || []);
+      }
+
+      const allowRes = await fetch('/api/github/allow-list');
+      if (allowRes.ok) {
+        const data = await allowRes.json();
+        setAllowedUrls(data.allowedUrls || []);
       }
     } catch (err) {
       console.error('Failed to load GitHub CI data:', err);
@@ -282,7 +300,10 @@ export const GitHubCiPrDashboard: React.FC = () => {
       );
 
       if (!authWindow) {
-        alert('Please allow popups in your browser to complete GitHub authorization.');
+        showToast({
+          type: 'error',
+          message: 'Please allow popups in your browser to complete GitHub authorization.'
+        });
       }
     } catch (err) {
       console.error('Failed to initiate GitHub OAuth:', err);
@@ -378,6 +399,11 @@ export const GitHubCiPrDashboard: React.FC = () => {
         const data = await res.json();
         setRuns(prev => [data.run, ...prev]);
         setSelectedRun(data.run);
+        showToast({
+          type: 'success',
+          message: 'Workflow run dispatched successfully to GitHub Actions.',
+          link: { label: 'View Actions', url: overview?.repoUrl ? `${overview.repoUrl}/actions` : '#' }
+        });
       }
     } catch (err) {
       console.error('Failed to dispatch run:', err);
@@ -406,7 +432,10 @@ export const GitHubCiPrDashboard: React.FC = () => {
       });
 
       if (res.ok) {
-        alert('Master Bot Override Active: All bots granted auto-fix and auto-approval permissions.');
+        showToast({
+          type: 'success',
+          message: 'Master Bot Override Active: All bots granted auto-fix and auto-approval permissions.'
+        });
         fetchData();
       }
     } catch (err) {
@@ -442,11 +471,49 @@ export const GitHubCiPrDashboard: React.FC = () => {
         // Update runs list and selected run
         setRuns(prev => prev.map(r => r.id === runId ? data.run : r));
         setSelectedRun(data.run);
+        showToast({
+          type: 'success',
+          message: `Biometric-verified retry initiated for workflow run #${runId}.`,
+          link: { label: 'View Run', url: overview?.repoUrl ? `${overview.repoUrl}/actions/runs/${runId}` : '#' }
+        });
       }
     } catch (err) {
       console.error('Failed to retry run:', err);
     } finally {
       setIsRetrying(false);
+    }
+  };
+
+  const handleRetryAll = async () => {
+    setIsBulkRetrying(true);
+    try {
+      const session = await triggerSignIn(
+        connectedUser?.email || 'dabelstech@moredesa.com',
+        window.location.hostname || 'localhost'
+      );
+      
+      if (!session) {
+        setIsBulkRetrying(false);
+        return;
+      }
+
+      const res = await fetch('/api/github/retry-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        showToast({
+          type: 'success',
+          message: `Successfully biometric-verified and initiated bulk retry for ${data.count} workflow(s).`
+        });
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Bulk retry failed:', err);
+    } finally {
+      setIsBulkRetrying(false);
     }
   };
 
@@ -640,6 +707,14 @@ jobs:
               <Activity className={`w-3 h-3 ${overview?.latestCommitStatus === 'pending' ? 'animate-pulse' : ''}`} />
               <span>Status: {overview?.latestCommitStatus || 'success'}</span>
             </div>
+
+            {/* Security Allow-List Badge */}
+            {allowedUrls.length > 0 && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-bold font-mono uppercase tracking-tight">
+                <Shield className="w-3 h-3" />
+                <span>Allow-list Active: {allowedUrls.length}</span>
+              </div>
+            )}
           </div>
 
           <h2 className="text-lg font-bold text-slate-900 mt-2">
@@ -664,6 +739,21 @@ jobs:
               <Play className="w-3.5 h-3.5 text-indigo-400" />
             )}
             <span>Dispatch Workflow Run</span>
+          </button>
+
+          <button
+            id="btn-trigger-bulk-rerun"
+            type="button"
+            onClick={handleRetryAll}
+            disabled={isBulkRetrying}
+            className="py-2.5 px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs disabled:opacity-60"
+          >
+            {isBulkRetrying ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RotateCcw className="w-3.5 h-3.5" />
+            )}
+            <span>Bulk Rerun All Together</span>
           </button>
         </div>
       </div>

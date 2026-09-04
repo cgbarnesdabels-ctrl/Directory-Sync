@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import type { CodeRabbitConfig, CodeRabbitPermissions } from '../types/github';
 import { useAuthOverlay } from '../context/AuthOverlayContext';
+import { useToast } from '../context/ToastContext';
 
 interface CodeRabbitDeviceBindingProps {
   onWorkflowRunTriggered?: () => void;
@@ -48,11 +49,10 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
   onViewWorkflowCode
 }) => {
   const { triggerSignIn, setPreferMode } = useAuthOverlay();
+  const { showToast } = useToast();
   const [config, setConfig] = useState<CodeRabbitConfig | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   // Binding Form Modal / State
@@ -80,18 +80,6 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
     fetchConfig();
   }, []);
 
-  const showSuccess = (msg: string) => {
-    setSuccessMessage(msg);
-    setErrorMessage(null);
-    setTimeout(() => setSuccessMessage(null), 4500);
-  };
-
-  const showError = (msg: string) => {
-    setErrorMessage(msg);
-    setSuccessMessage(null);
-    setTimeout(() => setErrorMessage(null), 4500);
-  };
-
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedText(label);
@@ -117,9 +105,12 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
       const data = await res.json();
       setConfig(data.config);
       setIsBindingModalOpen(false);
-      showSuccess(`Device "${bindDeviceName}" bound successfully with hardware assertion. CodeRabbit authorized with all-access.`);
+      showToast({
+        type: 'success',
+        message: `Device "${bindDeviceName}" bound successfully with hardware assertion. CodeRabbit authorized with all-access.`
+      });
     } catch (err: any) {
-      showError(err.message || 'Device binding failed');
+      showToast({ type: 'error', message: err.message || 'Device binding failed' });
     } finally {
       setActionInProgress(null);
     }
@@ -145,11 +136,14 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
       if (!res.ok) throw new Error('Failed to update access');
       const data = await res.json();
       setConfig(data.config);
-      showSuccess(newAllAccess 
-        ? 'CodeRabbit granted ALL ACCESS (contents:write, pull-requests:write, push commit, approve request).'
-        : 'CodeRabbit all-access disabled. Write permissions restricted to read-only.');
+      showToast({
+        type: 'success',
+        message: newAllAccess 
+          ? 'CodeRabbit granted ALL ACCESS (contents:write, pull-requests:write, push commit, approve request).'
+          : 'CodeRabbit all-access disabled. Write permissions restricted to read-only.'
+      });
     } catch (err: any) {
-      showError(err.message || 'Failed to toggle all-access');
+      showToast({ type: 'error', message: err.message || 'Failed to toggle all-access' });
     } finally {
       setActionInProgress(null);
     }
@@ -176,12 +170,16 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
       }
 
       const data = await res.json();
-      showSuccess(`🚀 CodeRabbit autorun job dispatched in GitHub CI/CD! Automated patch pushed and PR #42 approved.`);
+      showToast({
+        type: 'success',
+        message: `🚀 CodeRabbit autorun job dispatched in GitHub CI/CD! Automated patch pushed and PR #42 approved.`,
+        link: { label: 'View PR on GitHub', url: 'https://github.com/dabelstech-creator/Fluffy-octo-succotash/pull/42' }
+      });
       fetchConfig();
       if (onWorkflowRunTriggered) onWorkflowRunTriggered();
       if (onPrApproved) onPrApproved();
     } catch (err: any) {
-      showError(err.message || 'Failed to autorun job');
+      showToast({ type: 'error', message: err.message || 'Failed to autorun job' });
     } finally {
       setActionInProgress(null);
     }
@@ -206,11 +204,15 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
       }
 
       const data = await res.json();
-      showSuccess(`📝 CodeRabbit pushed automated commit "${data.commitSha}" with hardware device signature!`);
+      showToast({
+        type: 'success',
+        message: `📝 CodeRabbit pushed automated commit "${data.commitSha}" with hardware device signature!`,
+        link: { label: 'View Commit', url: `https://github.com/dabelstech-creator/Fluffy-octo-succotash/commit/${data.commitSha}` }
+      });
       fetchConfig();
       if (onWorkflowRunTriggered) onWorkflowRunTriggered();
     } catch (err: any) {
-      showError(err.message || 'Failed to push commit');
+      showToast({ type: 'error', message: err.message || 'Failed to push commit' });
     } finally {
       setActionInProgress(null);
     }
@@ -235,11 +237,15 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
       }
 
       const data = await res.json();
-      showSuccess(`✅ CodeRabbit approved Pull Request #42! Review registered with device-bound token.`);
+      showToast({
+        type: 'success',
+        message: `✅ CodeRabbit approved Pull Request #42! Review registered with device-bound token.`,
+        link: { label: 'View PR on GitHub', url: 'https://github.com/dabelstech-creator/Fluffy-octo-succotash/pull/42' }
+      });
       fetchConfig();
       if (onPrApproved) onPrApproved();
     } catch (err: any) {
-      showError(err.message || 'Failed to approve pull request');
+      showToast({ type: 'error', message: err.message || 'Failed to approve pull request' });
     } finally {
       setActionInProgress(null);
     }
@@ -256,9 +262,9 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
       if (!res.ok) throw new Error('Failed to revoke access');
       const data = await res.json();
       setConfig(data.config);
-      showSuccess('Device binding revoked. CodeRabbit write access removed.');
+      showToast({ type: 'success', message: 'Device binding revoked. CodeRabbit write access removed.' });
     } catch (err: any) {
-      showError(err.message || 'Failed to revoke access');
+      showToast({ type: 'error', message: err.message || 'Failed to revoke access' });
     } finally {
       setActionInProgress(null);
     }
@@ -306,39 +312,6 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
 
   return (
     <div className="space-y-6">
-      {/* Alert Banners */}
-      {successMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm flex items-center justify-between animate-in fade-in duration-200">
-          <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span className="font-medium">{successMessage}</span>
-          </div>
-          <button 
-            type="button" 
-            onClick={() => setSuccessMessage(null)}
-            className="text-xs text-emerald-700 hover:text-emerald-950 underline ml-4 cursor-pointer"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {errorMessage && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-sm flex items-center justify-between animate-in fade-in duration-200">
-          <div className="flex items-center gap-2.5">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-            <span className="font-medium">{errorMessage}</span>
-          </div>
-          <button 
-            type="button" 
-            onClick={() => setErrorMessage(null)}
-            className="text-xs text-rose-700 hover:text-rose-950 underline ml-4 cursor-pointer"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
       {/* Main Hero Card: Device Binding & All Access Status */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 rounded-2xl p-6 text-white border border-slate-700 shadow-xl relative overflow-hidden">
         {/* Subtle decorative glow */}

@@ -22,6 +22,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import type { PasswordResetResponse } from '../types/auth';
+import { useToast } from '../context/ToastContext';
 
 interface PasswordResetFlowProps {
   initialEmail?: string;
@@ -38,6 +39,7 @@ export const PasswordResetFlow: React.FC<PasswordResetFlowProps> = ({
   initialStatus = '',
   onResetComplete,
 }) => {
+  const { showToast } = useToast();
   // Request Link State
   const [email, setEmail] = useState(initialEmail);
   const [selectedScope, setSelectedScope] = useState('auth:reset-password');
@@ -120,7 +122,10 @@ export const PasswordResetFlow: React.FC<PasswordResetFlowProps> = ({
       setActiveToken(data.token);
       setActiveScope(data.scope);
     } catch (err: any) {
-      alert(err.message || 'Error requesting reset link');
+      showToast({
+        type: 'error',
+        message: err.message || 'Error requesting reset link'
+      });
     } finally {
       setIsRequesting(false);
     }

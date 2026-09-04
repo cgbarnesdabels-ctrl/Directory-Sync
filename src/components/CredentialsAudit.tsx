@@ -40,12 +40,14 @@ import {
 } from 'recharts';
 import type { RegisteredPasskey, AuditLog, AuthAuditMetricsSummary, DateRangeSelection } from '../types/auth';
 import { AuthMetricsDashboard } from './AuthMetricsDashboard';
+import { useToast } from '../context/ToastContext';
 
 interface CredentialsAuditProps {
   email: string;
 }
 
 export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => {
+  const { showToast } = useToast();
   const [passkeys, setPasskeys] = useState<RegisteredPasskey[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [metrics, setMetrics] = useState<AuthAuditMetricsSummary | null>(null);
@@ -154,7 +156,10 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
     if (totpCode.trim().length === 6) {
       setTotpVerified(true);
     } else {
-      alert('Please enter a valid 6-digit Google Authenticator code.');
+      showToast({
+        type: 'error',
+        message: 'Please enter a valid 6-digit Google Authenticator code.'
+      });
     }
   };
 
