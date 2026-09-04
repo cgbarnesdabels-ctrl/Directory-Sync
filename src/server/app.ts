@@ -6,6 +6,8 @@
 import express from 'express';
 import authRouter from './auth-router';
 import githubRouter from './github-router';
+import { driveRouter } from './drive-router';
+import { workspaceRouter } from './workspace-router';
 
 export const apiApp = express();
 
@@ -17,6 +19,12 @@ apiApp.use('/api/auth', authRouter);
 
 // Mount GitHub CI/CD & PR router under /api/github
 apiApp.use('/api/github', githubRouter);
+
+// Mount Google Drive router under /api/drive
+apiApp.use('/api/drive', driveRouter);
+
+// Mount Google Workspace router under /api/workspace
+apiApp.use('/api/workspace', workspaceRouter);
 
 // GitHub OAuth Redirect & Callback Aliases (supports /api/auth/github/* and /auth/github/*)
 apiApp.get(['/api/auth/github/callback', '/api/auth/github/callback/', '/auth/github/callback', '/auth/github/callback/'], (req, res, next) => {

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import type { UserSession, RegisteredPasskey } from '../types/auth';
 import { useAuthOverlay } from '../context/AuthOverlayContext';
+import { logSecurityEvent } from '../lib/audit-service';
 
 interface PasskeyAuthProps {
   currentRpId: string;
@@ -190,6 +191,15 @@ export const PasskeyAuth: React.FC<PasskeyAuthProps> = ({
         authenticatedVia: 'passkey',
         authenticatedAt: new Date().toLocaleTimeString(),
       });
+
+      // Log successful registration to Firestore
+      logSecurityEvent({
+        email,
+        type: 'Passkey Registration',
+        deviceType: verifyData.passkey.deviceType,
+        result: 'Success',
+        details: `Successfully registered a new passkey under RP ID: ${currentRpId}`
+      });
     } catch (err: any) {
       console.error('Registration failed:', err);
       setStatusMessage({
@@ -226,6 +236,16 @@ export const PasskeyAuth: React.FC<PasskeyAuthProps> = ({
           text: 'Identity verified successfully!',
           details: `Authenticated as ${email} via on-device passkey biometric signature.`,
         });
+
+        // Log successful sign-in to Firestore
+        logSecurityEvent({
+          email,
+          type: 'Passkey Authentication',
+          deviceType: 'Hardware-bound Device',
+          result: 'Success',
+          details: `Successfully authenticated via biometric signature on RP ID: ${currentRpId}`
+        });
+
         onAuthSuccess(session);
       }
     } catch (err: any) {

@@ -41,6 +41,10 @@ import {
 import type { RegisteredPasskey, AuditLog, AuthAuditMetricsSummary, DateRangeSelection } from '../types/auth';
 import { AuthMetricsDashboard } from './AuthMetricsDashboard';
 import { useToast } from '../context/ToastContext';
+import { initGoogleAuth, googleSignIn, googleLogout, getGoogleAccessToken } from '../lib/google-auth';
+import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { updateSyncStatus } from '../lib/sync-service';
 
 interface CredentialsAuditProps {
   email: string;
@@ -75,6 +79,99 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
   const [copiedIcalUrl, setCopiedIcalUrl] = useState(false);
   const [biometricUnlocked, setBiometricUnlocked] = useState(false);
   const [isBiometricVerifying, setIsBiometricVerifying] = useState(false);
+
+  // Google Drive Integration State
+  const [googleUser, setGoogleUser] = useState<any>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isExportingToDrive, setIsExportingToDrive] = useState(false);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'audit_logs'),
+      where('email', '==', email),
+      orderBy('timestamp', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      setAuditLogs(logsData);
+    });
+    return () => unsubscribe();
+  }, [email]);
+
+  useEffect(() => {
+    const unsubscribe = initGoogleAuth(
+      (user) => setGoogleUser(user),
+      () => setGoogleUser(null)
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await googleSignIn();
+      showToast({ type: 'success', message: 'Signed in to Google successfully.' });
+    } catch (err) {
+      console.error('Google Sign-In Error:', err);
+      showToast({ type: 'error', message: 'Failed to sign in to Google.' });
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    await googleLogout();
+    setGoogleUser(null);
+    showToast({ type: 'success', message: 'Signed out of Google.' });
+  };
+
+  const handleExportToGoogleDrive = async () => {
+    const token = getGoogleAccessToken();
+    if (!token) {
+      showToast({ type: 'error', message: 'Authentication required. Please sign in to Google.' });
+      return;
+    }
+
+    setIsExportingToDrive(true);
+    try {
+      const res = await fetch('/api/drive/upload-audit-log', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          logs: auditLogs.map(log => ({
+            timestamp: log.timestamp,
+            userEmail: log.email,
+            action: log.type,
+            resource: 'Audit Log',
+            result: log.type.includes('failed') ? 'Failure' : 'Success',
+            deviceId: log.deviceType || 'unknown'
+          })),
+          filename: `Dabels_Security_Audit_${new Date().toISOString().slice(0, 10)}.csv`
+        })
+      });
+
+      if (!res.ok) {
+        updateSyncStatus('drive', 'error');
+        throw new Error('Failed to upload to Drive');
+      }
+      
+      const data = await res.json();
+      updateSyncStatus('drive', 'active');
+      showToast({
+        type: 'success',
+        message: 'Successfully exported audit log to Google Drive!',
+        link: { label: 'View File in Drive', url: data.link }
+      });
+    } catch (err) {
+      console.error('Drive Export Error:', err);
+      showToast({ type: 'error', message: 'Failed to export to Google Drive.' });
+    } finally {
+      setIsExportingToDrive(false);
+    }
+  };
 
   const handleVerifyBiometricGate = async () => {
     setIsBiometricVerifying(true);
@@ -200,20 +297,14 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
         metricsUrl += `&days=${encodeURIComponent(activeRange.preset || '30')}`;
       }
 
-      const [keysRes, logsRes, metricsRes] = await Promise.all([
+      const [keysRes, metricsRes] = await Promise.all([
         fetch(`/api/auth/user-passkeys?email=${encodeURIComponent(email)}`),
-        fetch('/api/auth/audit-logs'),
         fetch(metricsUrl),
       ]);
 
       if (keysRes.ok) {
         const keysData = await keysRes.json();
         setPasskeys(keysData.passkeys || []);
-      }
-
-      if (logsRes.ok) {
-        const logsData = await logsRes.json();
-        setAuditLogs(logsData.logs || []);
       }
 
       if (metricsRes.ok) {
@@ -476,6 +567,39 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
               {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}
               <span>{copiedUrl ? 'URL Copied!' : 'Copy App URL'}</span>
             </button>
+
+            {googleUser ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleGoogleLogout}
+                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                  title="Sign out of Google"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                  <div className="w-4 h-4 rounded-full bg-emerald-500 overflow-hidden shrink-0">
+                    {googleUser.photoURL ? (
+                      <img src={googleUser.photoURL} alt="" referrerPolicy="no-referrer" />
+                    ) : (
+                      <Check className="w-3 h-3 text-white m-0.5" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 truncate max-w-[100px]">
+                    {googleUser.email}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={handleGoogleSignIn}
+                disabled={isGoogleLoading}
+                className="inline-flex items-center gap-2 py-1.5 px-3 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer border border-slate-200 shadow-sm disabled:opacity-50"
+              >
+                <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" className="w-4 h-4" alt="" />
+                <span>{isGoogleLoading ? 'Connecting...' : 'Link Google Account'}</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -561,6 +685,43 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
                 <Download className="w-3 h-3" />
                 <span>Export JSON</span>
               </button>
+            </div>
+          </div>
+
+          {/* Google Drive Integration */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <HardDrive className="w-4 h-4 text-indigo-600" /> Export to Google Drive
+              </span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${googleUser ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                {googleUser ? 'Drive Linked' : 'Offline'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Securely export your tamper-evident audit logs to Google Drive as CSV spreadsheets for long-term compliance storage.
+            </p>
+            <div className="pt-1 flex flex-col gap-2">
+              <button
+                id="btn-export-drive"
+                type="button"
+                onClick={handleExportToGoogleDrive}
+                disabled={!googleUser || isExportingToDrive}
+                className="w-full py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-sm"
+              >
+                {isExportingToDrive ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Cloud className="w-3.5 h-3.5" />
+                )}
+                <span>{isExportingToDrive ? 'Uploading to Drive...' : 'Export Audit Log to Drive'}</span>
+              </button>
+              {!googleUser && (
+                <div className="text-[10px] text-slate-400 text-center flex items-center justify-center gap-1">
+                  <ShieldAlert className="w-3 h-3" />
+                  Link account above to enable Drive export
+                </div>
+              )}
             </div>
           </div>
 

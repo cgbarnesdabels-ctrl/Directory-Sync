@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "AuditLog": {
+      "title": "Audit Log",
+      "description": "System-wide security and authentication audit logs.",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "email": { "type": "string" },
+        "type": { "type": "string" },
+        "deviceType": { "type": "string" },
+        "result": { "type": "string", "enum": ["Success", "Failure"] },
+        "details": { "type": "string" }
+      },
+      "required": ["timestamp", "email", "type", "result"]
+    },
+    "SecurityConfig": {
+      "title": "Security Configuration",
+      "description": "Hardware-bound device configurations and trust scores.",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string" },
+        "trustScore": { "type": "number" },
+        "lastVerified": { "type": "string", "format": "date-time" },
+        "status": { "type": "string" }
+      },
+      "required": ["deviceId", "trustScore", "status"]
+    },
+    "SyncStatus": {
+      "title": "Integration Sync Status",
+      "description": "Real-time synchronization status for Google Workspace integrations.",
+      "type": "object",
+      "properties": {
+        "service": { "type": "string", "enum": ["drive", "calendar", "gmail", "chat", "keep"] },
+        "lastSyncAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "error", "pending"] },
+        "userEmail": { "type": "string" }
+      },
+      "required": ["service", "lastSyncAt", "status", "userEmail"]
+    }
+  },
+  "firestore": {
+    "audit_logs": {
+      "schema": "AuditLog",
+      "description": "Collection of security audit logs."
+    },
+    "security_configs": {
+      "schema": "SecurityConfig",
+      "description": "Collection of hardware-bound security configurations."
+    },
+    "sync_status": {
+      "schema": "SyncStatus",
+      "description": "Collection of integration sync states."
+    }
+  }
+}

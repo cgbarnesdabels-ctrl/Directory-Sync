@@ -24,6 +24,8 @@ import { CredentialsAudit } from './components/CredentialsAudit';
 import { IosIntegrationGuide } from './components/IosIntegrationGuide';
 import { ApiExplorer } from './components/ApiExplorer';
 import { GitHubCiPrDashboard } from './components/GitHubCiPrDashboard';
+import { SecurityOperationsCenter } from './components/SecurityOperationsCenter';
+import { DashboardWidget } from './components/DashboardWidget';
 import { BiometricScreenOverlay } from './components/BiometricScreenOverlay';
 import { FloatingAuthCiWidget } from './components/FloatingAuthCiWidget';
 import { AuthOverlayProvider } from './context/AuthOverlayContext';
@@ -32,7 +34,7 @@ import type { UserSession, RegisteredPasskey } from './types/auth';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    'passkeys' | 'reset-flow' | 'credentials' | 'github-ci' | 'ios-guide' | 'api-explorer'
+    'passkeys' | 'reset-flow' | 'credentials' | 'github-ci' | 'ios-guide' | 'api-explorer' | 'soc'
   >('passkeys');
 
   // URL Query Parameters for Scope Redirect Handling
@@ -105,6 +107,8 @@ export default function App() {
 
         {/* Main Container */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+          <DashboardWidget />
+          
           {/* Navigation Tabs */}
           <div className="flex items-center justify-between border-b border-slate-200 overflow-x-auto pb-px">
             <nav className="flex space-x-2 sm:space-x-4" aria-label="Tabs">
@@ -195,6 +199,20 @@ export default function App() {
                 <Terminal className="w-4 h-4" />
                 <span>Live API Playground</span>
               </button>
+
+              <button
+                id="tab-soc"
+                type="button"
+                onClick={() => setActiveTab('soc')}
+                className={`py-3 px-3 sm:px-4 text-xs sm:text-sm font-semibold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                  activeTab === 'soc'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Security Operations</span>
+              </button>
             </nav>
           </div>
 
@@ -229,6 +247,8 @@ export default function App() {
           {activeTab === 'ios-guide' && <IosIntegrationGuide />}
 
           {activeTab === 'api-explorer' && <ApiExplorer />}
+
+          {activeTab === 'soc' && <SecurityOperationsCenter />}
         </main>
 
         {/* Global Biometric Screen Overlay (Pop & PiP) */}
