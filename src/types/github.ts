@@ -166,3 +166,13 @@ export interface GitHubWebhookLog {
   status: 'success' | 'failure';
 }
 
+export interface SSOEnrollment {
+  id: string;
+  email: string;
+  githubLogin: string;
+  enrolledAt: string;
+  deviceId: string;
+  deviceType: 'ios' | 'macos' | 'fido2';
+  status: 'active' | 'revoked';
+}
+

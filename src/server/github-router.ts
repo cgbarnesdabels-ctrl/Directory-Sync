@@ -410,6 +410,29 @@ let connectedRepoInfo = {
   latestCommitStatus: 'success' as 'success' | 'pending' | 'failure' | 'error'
 };
 
+// SSO Enrollment Store
+interface SSOEnrollment {
+  id: string;
+  email: string;
+  githubLogin: string;
+  enrolledAt: string;
+  deviceId: string;
+  deviceType: 'ios' | 'macos' | 'fido2';
+  status: 'active' | 'revoked';
+}
+
+let ssoEnrollments: SSOEnrollment[] = [
+  {
+    id: 'sso-9921',
+    email: 'dabelstech@moredesa.com',
+    githubLogin: 'dabelstech',
+    enrolledAt: new Date(Date.now() - 86400 * 1000).toISOString(),
+    deviceId: 'iphone-15-pro-9921',
+    deviceType: 'ios',
+    status: 'active'
+  }
+];
+
 // 1. GET /api/github/overview
 router.get('/overview', (req, res) => {
   const passingRuns = workflowRuns.filter(r => r.conclusion === 'success').length;
@@ -774,6 +797,50 @@ router.get('/user', (req, res) => {
 router.post('/disconnect', (req, res) => {
   connectedGitHubUser = null;
   res.json({ success: true, message: 'GitHub account disconnected successfully' });
+});
+
+// GET /api/github/sso/enrollments
+router.get('/sso/enrollments', (req, res) => {
+  res.json({ enrollments: ssoEnrollments });
+});
+
+// POST /api/github/sso/enroll
+router.post('/sso/enroll', (req, res) => {
+  if (!connectedGitHubUser) {
+    return res.status(401).json({ error: 'GitHub authentication required before SSO enrollment.' });
+  }
+
+  const { deviceId, deviceType = 'ios' } = req.body || {};
+  
+  const enrollment: SSOEnrollment = {
+    id: `sso-${Math.random().toString(36).substring(2, 8)}`,
+    email: connectedGitHubUser.email,
+    githubLogin: connectedGitHubUser.login,
+    enrolledAt: new Date().toISOString(),
+    deviceId: deviceId || 'ios-device-bound',
+    deviceType: deviceType as any,
+    status: 'active'
+  };
+
+  ssoEnrollments.unshift(enrollment);
+
+  res.json({
+    success: true,
+    message: 'SSO Enrollment successful. Device bound to GitHub identity.',
+    enrollment
+  });
+});
+
+// POST /api/github/sso/revoke
+router.post('/sso/revoke', (req, res) => {
+  const { enrollmentId } = req.body || {};
+  const enrollment = ssoEnrollments.find(e => e.id === enrollmentId);
+  
+  if (enrollment) {
+    enrollment.status = 'revoked';
+  }
+
+  res.json({ success: true, message: 'SSO Enrollment revoked.' });
 });
 
 // POST /api/github/simulate-auth (For preview testing and immediate UI verification)

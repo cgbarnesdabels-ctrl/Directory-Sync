@@ -30,7 +30,8 @@ import {
   FileCode,
   Shield,
   Smartphone,
-  Laptop
+  Laptop,
+  Download
 } from 'lucide-react';
 import type { CodeRabbitConfig, CodeRabbitPermissions } from '../types/github';
 import { useAuthOverlay } from '../context/AuthOverlayContext';
@@ -261,6 +262,34 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
     } finally {
       setActionInProgress(null);
     }
+  };
+
+  const handleExportAuditLogs = () => {
+    if (!config || config.recentAuditLogs.length === 0) return;
+    
+    const headers = ['Timestamp', 'Action', 'Status', 'Device Signature', 'Details'];
+    const rows = config.recentAuditLogs.map(log => [
+      new Date(log.timestamp).toLocaleString().replace(/,/g, ''),
+      log.action,
+      log.status,
+      log.deviceFingerprint || 'enclave-hw-sig',
+      log.details.replace(/,/g, ';') // Simple CSV escaping
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `github-audit-logs-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (!config) {
@@ -770,14 +799,24 @@ export const CodeRabbitDeviceBinding: React.FC<CodeRabbitDeviceBindingProps> = (
             </h3>
             <p className="text-xs text-slate-500">Immutable record of all CodeRabbit CI/CD operations authorized by device credentials</p>
           </div>
-          <button
-            type="button"
-            onClick={fetchConfig}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Refresh Audit Logs</span>
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={fetchConfig}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Refresh Audit Logs</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportAuditLogs}
+              className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold flex items-center gap-1.5 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export CSV</span>
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">

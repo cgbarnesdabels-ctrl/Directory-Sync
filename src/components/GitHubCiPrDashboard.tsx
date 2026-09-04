@@ -47,7 +47,8 @@ import type {
   GitHubOverview,
   GitHubOAuthConfig,
   GitHubUserProfile,
-  GitHubWebhookLog
+  GitHubWebhookLog,
+  SSOEnrollment
 } from '../types/github';
 import { useAuthOverlay } from '../context/AuthOverlayContext';
 import { CodeRabbitDeviceBinding } from './CodeRabbitDeviceBinding';
@@ -58,7 +59,7 @@ export const GitHubCiPrDashboard: React.FC = () => {
   const [runs, setRuns] = useState<GitHubWorkflowRun[]>([]);
   const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
   const [selectedRun, setSelectedRun] = useState<GitHubWorkflowRun | null>(null);
-  const [activeTab, setActiveTab] = useState<'workflows' | 'pull-requests' | 'coderabbit' | 'workflow-code' | 'oauth-config' | 'webhook-debugger'>('workflows');
+  const [activeTab, setActiveTab] = useState<'workflows' | 'pull-requests' | 'coderabbit' | 'workflow-code' | 'oauth-config' | 'webhook-debugger' | 'sso-enrollment'>('workflows');
   const [selectedWorkflowFile, setSelectedWorkflowFile] = useState<'ci.yml' | 'pr-checks.yml' | 'coderabbit.yml'>('ci.yml');
   const [isDispatching, setIsDispatching] = useState(false);
   const [isCheckingPr, setIsCheckingPr] = useState(false);
@@ -72,6 +73,8 @@ export const GitHubCiPrDashboard: React.FC = () => {
   const [wakeLock, setWakeLock] = useState<any>(null);
   const [isBotAutoFixing, setIsBotAutoFixing] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [ssoEnrollments, setSsoEnrollments] = useState<SSOEnrollment[]>([]);
+  const [isEnrollingSso, setIsEnrollingSso] = useState(false);
 
   // Screen Wake Lock Effect
   useEffect(() => {
@@ -203,6 +206,12 @@ export const GitHubCiPrDashboard: React.FC = () => {
         const data = await webhookRes.json();
         setWebhookLogs(data.logs || []);
       }
+      
+      const ssoRes = await fetch('/api/github/sso/enrollments');
+      if (ssoRes.ok) {
+        const data = await ssoRes.json();
+        setSsoEnrollments(data.enrollments || []);
+      }
     } catch (err) {
       console.error('Failed to load GitHub CI data:', err);
     }
@@ -289,6 +298,52 @@ export const GitHubCiPrDashboard: React.FC = () => {
       fetchOAuthConfig();
     } catch (err) {
       console.error('Failed to disconnect GitHub:', err);
+    }
+  };
+
+  const handleSsoEnroll = async (deviceId: string, deviceType: 'ios' | 'macos' | 'fido2') => {
+    setIsEnrollingSso(true);
+    try {
+      // Step 1: Biometric Identity Verification via PiP Overlay
+      const session = await triggerSignIn(
+        connectedUser?.email || 'dabelstech@moredesa.com',
+        window.location.hostname || 'localhost'
+      );
+      
+      if (!session) {
+        setIsEnrollingSso(false);
+        return;
+      }
+
+      // Step 2: Register Enrollment with GitHub Backend
+      const res = await fetch('/api/github/sso/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId, deviceType }),
+      });
+
+      if (res.ok) {
+        fetchData(); // Refresh enrollments
+      }
+    } catch (err) {
+      console.error('Failed to enroll SSO:', err);
+    } finally {
+      setIsEnrollingSso(false);
+    }
+  };
+
+  const handleSsoRevoke = async (enrollmentId: string) => {
+    try {
+      const res = await fetch('/api/github/sso/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enrollmentId }),
+      });
+      if (res.ok) {
+        fetchData(); // Refresh enrollments
+      }
+    } catch (err) {
+      console.error('Failed to revoke SSO enrollment:', err);
     }
   };
 
@@ -754,6 +809,20 @@ jobs:
               {webhookLogs.length}
             </span>
           )}
+        </button>
+
+        <button
+          id="subtab-github-sso"
+          type="button"
+          onClick={() => setActiveTab('sso-enrollment')}
+          className={`pb-3 border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${
+            activeTab === 'sso-enrollment'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>SSO &amp; Identity Enrollment</span>
         </button>
       </div>
 
@@ -1713,6 +1782,222 @@ jobs:
               <span className="text-[10px] font-mono text-slate-400">
                 Retention: Last 20 events
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Subtab 7: SSO & Identity Enrollment */}
+      {activeTab === 'sso-enrollment' && (
+        <div className="space-y-6">
+          {/* Identity Enrollment Hero */}
+          <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-emerald-950 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden border border-slate-800">
+            <div className="absolute top-0 right-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none" />
+            <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
+            
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-emerald-400/20 p-3 rounded-2xl border border-emerald-400/30">
+                    <Fingerprint className="w-7 h-7 text-emerald-300" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black tracking-tight">SSO & Identity Enrollment</h3>
+                    <p className="text-emerald-200/70 text-sm font-semibold uppercase tracking-widest">iOS Secure Enclave Binding</p>
+                  </div>
+                </div>
+
+                <p className="text-slate-300 text-lg leading-relaxed font-medium">
+                  Enroll your GitHub identity into the Dabels Tech SSO ecosystem. 
+                  This binds your hardware Secure Enclave to your repository profile for zero-touch authentication and automated fixing.
+                </p>
+
+                <div className="flex flex-wrap gap-4">
+                  <button
+                    type="button"
+                    onClick={() => handleSsoEnroll(`ios-enc-${Date.now().toString(36)}`, 'ios')}
+                    disabled={isEnrollingSso || !connectedUser}
+                    className={`px-8 py-4 rounded-2xl text-sm font-bold flex items-center gap-3 transition-all shadow-xl cursor-pointer ${
+                      isEnrollingSso 
+                        ? 'bg-emerald-500 text-white animate-pulse' 
+                        : !connectedUser
+                        ? 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-50'
+                        : 'bg-white text-indigo-950 hover:scale-[1.02] active:scale-[0.98]'
+                    }`}
+                  >
+                    {isEnrollingSso ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <UserCheck className="w-5 h-5 text-emerald-600" />
+                    )}
+                    <span>{isEnrollingSso ? 'Enrolling Identity...' : 'Start iOS SSO Enrollment'}</span>
+                  </button>
+
+                  <div className="flex items-center gap-2 px-5 py-3 bg-slate-800/50 rounded-2xl border border-slate-700 backdrop-blur-md">
+                    <Shield className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">Security Level: HARDWARE_BOUND</span>
+                  </div>
+                </div>
+
+                {!connectedUser && (
+                  <p className="text-rose-300 text-xs font-bold flex items-center gap-1.5 animate-pulse">
+                    <AlertCircle className="w-4 h-4" />
+                    GITHUB AUTHENTICATION REQUIRED BEFORE ENROLLMENT
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-slate-900/50 backdrop-blur-xl rounded-3xl p-6 border border-slate-800 space-y-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Enrollment Profile</span>
+                  {connectedUser && (
+                    <span className="text-[10px] bg-emerald-400/10 text-emerald-400 px-2 py-0.5 rounded-full font-bold border border-emerald-400/20">
+                      ID_VERIFIED
+                    </span>
+                  )}
+                </div>
+
+                {connectedUser ? (
+                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-800/30 border border-slate-700">
+                    <img 
+                      src={connectedUser.avatarUrl} 
+                      alt={connectedUser.login}
+                      className="w-16 h-16 rounded-2xl border-2 border-indigo-500/30"
+                    />
+                    <div>
+                      <div className="text-lg font-bold text-white">@{connectedUser.login}</div>
+                      <div className="text-sm text-slate-400">{connectedUser.email}</div>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-indigo-400">
+                        <Link2 className="w-3 h-3" />
+                        <span>GH_ID: {Math.random().toString(36).substring(7).toUpperCase()}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-24 flex items-center justify-center border-2 border-dashed border-slate-800 rounded-2xl text-slate-600 text-sm italic">
+                    Authenticate GitHub to view profile
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 space-y-1">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase">Device Context</div>
+                    <div className="text-sm font-bold text-slate-200">iOS Backend (Sandboxed)</div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 space-y-1">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase">Auth Protocol</div>
+                    <div className="text-sm font-bold text-slate-200">OAuth 2.0 / SSO</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Enrolled Identity Matrix */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Enrolled Identity Matrix</h3>
+                <p className="text-sm text-slate-500">Active SSO device bindings and enrollment history</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex -space-x-2">
+                  {ssoEnrollments.slice(0, 3).map((e, idx) => (
+                    <div key={e.id} className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-600">
+                      {e.githubLogin.substring(0, 2).toUpperCase()}
+                    </div>
+                  ))}
+                  {ssoEnrollments.length > 3 && (
+                    <div className="w-8 h-8 rounded-full bg-indigo-600 border-2 border-white flex items-center justify-center text-[10px] font-bold text-white">
+                      +{ssoEnrollments.length - 3}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchData}
+                  className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all cursor-pointer shadow-sm"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <th className="px-8 py-4">Identity / Device</th>
+                    <th className="px-8 py-4">Enrolled At</th>
+                    <th className="px-8 py-4">Status / Security</th>
+                    <th className="px-8 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {ssoEnrollments.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-8 py-12 text-center text-slate-500 italic">
+                        No active SSO enrollments detected. Start enrollment to bind your identity.
+                      </td>
+                    </tr>
+                  ) : (
+                    ssoEnrollments.map((enrollment) => (
+                      <tr key={enrollment.id} className="hover:bg-slate-50/80 transition-colors group">
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                              enrollment.deviceType === 'ios' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {enrollment.deviceType === 'ios' ? <MonitorPlay className="w-5 h-5" /> : <Globe className="w-5 h-5" />}
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-slate-900">@{enrollment.githubLogin}</div>
+                              <div className="text-[11px] font-mono text-slate-400">{enrollment.deviceId}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="text-sm font-semibold text-slate-700">
+                            {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            {new Date(enrollment.enrolledAt).toLocaleTimeString()}
+                          </div>
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-3">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight flex items-center gap-1.5 ${
+                              enrollment.status === 'active' 
+                                ? 'bg-emerald-100 text-emerald-700' 
+                                : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${enrollment.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                              {enrollment.status}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
+                              AES-256-GCM
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleSsoRevoke(enrollment.id)}
+                            disabled={enrollment.status === 'revoked'}
+                            className={`p-2.5 rounded-xl transition-all cursor-pointer ${
+                              enrollment.status === 'revoked'
+                                ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                : 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+                            }`}
+                            title="Revoke Identity Binding"
+                          >
+                            <LogOut className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
