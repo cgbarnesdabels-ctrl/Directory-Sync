@@ -69,6 +69,7 @@ export const GitHubCiPrDashboard: React.FC = () => {
   const [isSimulatingWebhook, setIsSimulatingWebhook] = useState(false);
   const [keepDeviceLive, setKeepDeviceLive] = useState(false);
   const [wakeLock, setWakeLock] = useState<any>(null);
+  const [isBotAutoFixing, setIsBotAutoFixing] = useState(false);
 
   // Screen Wake Lock Effect
   useEffect(() => {
@@ -328,6 +329,36 @@ export const GitHubCiPrDashboard: React.FC = () => {
     }
   };
 
+  const handleGlobalBotAutoFix = async () => {
+    setIsBotAutoFixing(true);
+    try {
+      // Step 1: Re-authenticate
+      const session = await triggerSignIn(
+        connectedUser?.email || 'dabelstech@moredesa.com',
+        window.location.hostname || 'localhost'
+      );
+      
+      if (!session) {
+        setIsBotAutoFixing(false);
+        return;
+      }
+
+      const res = await fetch('/api/github/bots/auto-configure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (res.ok) {
+        alert('Master Bot Override Active: All bots granted auto-fix and auto-approval permissions.');
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Bot auto-fix failed:', err);
+    } finally {
+      setIsBotAutoFixing(false);
+    }
+  };
+
   const handleTriggerPrCheck = async (prNumber: number) => {
     setIsCheckingPr(true);
     try {
@@ -500,12 +531,24 @@ jobs:
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5">
               <GitBranch className="w-3.5 h-3.5 text-indigo-400" />
-              <span>dabelstech / passkey-gateway-ios</span>
+              <span>dabelstech / {overview?.repoName || 'passkey-gateway-ios'}</span>
             </span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200 flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
               <span>CI Passing ({overview?.passingRate || 100}%)</span>
             </span>
+            
+            {/* Real-time Commit Status Badge */}
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold font-mono uppercase tracking-tight ${
+              overview?.latestCommitStatus === 'success' 
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : overview?.latestCommitStatus === 'pending'
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-rose-50 text-rose-700 border-rose-200'
+            }`}>
+              <Activity className={`w-3 h-3 ${overview?.latestCommitStatus === 'pending' ? 'animate-pulse' : ''}`} />
+              <span>Status: {overview?.latestCommitStatus || 'success'}</span>
+            </div>
           </div>
 
           <h2 className="text-lg font-bold text-slate-900 mt-2">
@@ -930,14 +973,64 @@ jobs:
 
       {/* Subtab 3: CodeRabbit & Device Binding */}
       {activeTab === 'coderabbit' && (
-        <CodeRabbitDeviceBinding
-          onWorkflowRunTriggered={fetchData}
-          onPrApproved={fetchData}
-          onViewWorkflowCode={() => {
-            setSelectedWorkflowFile('coderabbit.yml');
-            setActiveTab('workflow-code');
-          }}
-        />
+        <div className="space-y-6">
+          <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+            <div className="relative z-10 space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="bg-amber-400/20 p-2.5 rounded-2xl border border-amber-400/30">
+                  <Sparkles className="w-6 h-6 text-amber-300" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">Master Bot Override & Auto-Fix</h3>
+                  <p className="text-indigo-200/70 text-xs">Zero-Touch Security Remediation & Auto-Approval Gate</p>
+                </div>
+              </div>
+              
+              <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
+                Grant all integrated bots (CodeRabbit, DabelsBot, SecurityAgent) immediate write access to your repository. 
+                This enables automated patch pushing, AST-led vulnerability fixing, and multi-bot consensus for PR approvals.
+              </p>
+
+              <div className="flex flex-wrap gap-4">
+                <button
+                  type="button"
+                  onClick={handleGlobalBotAutoFix}
+                  disabled={isBotAutoFixing}
+                  className={`px-6 py-3 rounded-2xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg cursor-pointer ${
+                    isBotAutoFixing 
+                      ? 'bg-amber-500 text-white animate-pulse' 
+                      : 'bg-white text-indigo-900 hover:scale-[1.02] active:scale-[0.98]'
+                  }`}
+                >
+                  {isBotAutoFixing ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Zap className="w-5 h-5 text-amber-500 fill-current" />
+                  )}
+                  <span>{isBotAutoFixing ? 'Running Global Bot Sweep...' : 'Initialize Master Bot Auto-Fix'}</span>
+                </button>
+                
+                <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 rounded-2xl border border-slate-700">
+                  <Shield className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Bot Status: STANDBY</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="absolute -bottom-12 -right-12 opacity-5 rotate-12">
+              <Sparkles className="w-64 h-64" />
+            </div>
+          </div>
+
+          <CodeRabbitDeviceBinding
+            onWorkflowRunTriggered={fetchData}
+            onPrApproved={fetchData}
+            onViewWorkflowCode={() => {
+              setSelectedWorkflowFile('coderabbit.yml');
+              setActiveTab('workflow-code');
+            }}
+          />
+        </div>
       )}
 
       {/* Subtab 4: Workflow Specifications (.github/workflows) */}

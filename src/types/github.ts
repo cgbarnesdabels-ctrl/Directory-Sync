@@ -68,6 +68,7 @@ export interface GitHubOverview {
   passingRate: number;
   openPRsCount: number;
   activeWorkflowsCount: number;
+  latestCommitStatus: 'success' | 'pending' | 'failure' | 'error';
 }
 
 export interface GitHubOAuthConfig {

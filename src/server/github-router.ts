@@ -406,7 +406,8 @@ let connectedRepoInfo = {
   repoName: 'Fluffy-octo-succotash',
   owner: 'dabelstech-creator',
   repoUrl: 'https://github.com/dabelstech-creator/Fluffy-octo-succotash',
-  defaultBranch: 'main'
+  defaultBranch: 'main',
+  latestCommitStatus: 'success' as 'success' | 'pending' | 'failure' | 'error'
 };
 
 // 1. GET /api/github/overview
@@ -425,7 +426,8 @@ router.get('/overview', (req, res) => {
     totalRuns: workflowRuns.length + 18, // aggregate with historic
     passingRate: Math.round(((passingRuns + 17) / (workflowRuns.length + 18)) * 100),
     openPRsCount: pullRequests.filter(p => p.status === 'open').length,
-    activeWorkflowsCount: 2
+    activeWorkflowsCount: 2,
+    latestCommitStatus: connectedRepoInfo.latestCommitStatus
   };
   res.json(overview);
 });
@@ -1297,6 +1299,43 @@ router.post('/pull-requests/bulk-approve', (req, res) => {
     message: `Successfully approved ${approvedPrs.length} pull requests with biometric verification.`,
     approvedCount: approvedPrs.length,
     pullRequests
+  });
+});
+
+// POST /api/github/bots/auto-configure
+router.post('/bots/auto-configure', (req, res) => {
+  // Grant all permissions to CodeRabbit and other potential bots
+  codeRabbitConfig.allAccessGranted = true;
+  codeRabbitConfig.autoRunEnabled = true;
+  codeRabbitConfig.autoRunOnPr = true;
+  codeRabbitConfig.autoRunOnPush = true;
+  codeRabbitConfig.canPushCommit = true;
+  codeRabbitConfig.canApproveRequest = true;
+  codeRabbitConfig.permissions = {
+    contents: 'write',
+    pullRequests: 'write',
+    issues: 'write',
+    checks: 'write',
+    statuses: 'write',
+    idToken: 'write',
+    actions: 'write'
+  };
+
+  const auditEntry: CodeRabbitAuditEntry = {
+    id: `cr-audit-bot-sweep-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    action: 'GRANT_ALL_ACCESS',
+    status: 'success',
+    deviceFingerprint: codeRabbitConfig.deviceBinding.publicKeyFingerprint,
+    performedBy: 'System Auto-Fix Sweep',
+    details: 'Master Bot Override: All bots granted write access and auto-approval permissions for zero-touch remediation.'
+  };
+  codeRabbitConfig.recentAuditLogs.unshift(auditEntry);
+
+  res.json({
+    success: true,
+    message: 'Global bot auto-fix and auto-approval permissions enabled.',
+    config: codeRabbitConfig
   });
 });
 
