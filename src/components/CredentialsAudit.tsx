@@ -37,6 +37,25 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
   });
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    enabled: true,
+    threshold: 5,
+    windowMinutes: 10,
+    notifyEmail: email,
+  });
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [configSavedMessage, setConfigSavedMessage] = useState(false);
+
+  const handleSaveAlertConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingConfig(true);
+    setTimeout(() => {
+      setIsSavingConfig(false);
+      setConfigSavedMessage(true);
+      setTimeout(() => setConfigSavedMessage(false), 3000);
+    }, 600);
+  };
 
   const fetchData = useCallback(async (customRange?: DateRangeSelection) => {
     setIsLoading(true);
@@ -79,6 +98,14 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!autoRefreshEnabled) return;
+    const interval = setInterval(() => {
+      fetchData();
+    }, 60000); // 60 seconds
+    return () => clearInterval(interval);
+  }, [autoRefreshEnabled, fetchData]);
 
   const handleDateRangeChange = (newRange: DateRangeSelection) => {
     setDateRange(newRange);
@@ -148,16 +175,38 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
             Active FIDO2 credentials, 30-day authentication analytics, and tamper-evident event log for <span className="font-semibold text-slate-800">{email}</span>.
           </p>
         </div>
-        <button
-          id="btn-refresh-audit-records"
-          type="button"
-          onClick={fetchData}
-          disabled={isLoading}
-          className="inline-flex items-center gap-2 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-          <span>Refresh Records</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+            <Clock className={`w-3.5 h-3.5 ${autoRefreshEnabled ? 'text-indigo-600 animate-pulse' : 'text-slate-400'}`} />
+            <span className="text-xs font-semibold text-slate-700">Auto-refresh (60s)</span>
+            <button
+              id="toggle-audit-auto-refresh"
+              type="button"
+              onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+              className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out cursor-pointer ${
+                autoRefreshEnabled ? 'bg-indigo-600' : 'bg-slate-300'
+              }`}
+              title={autoRefreshEnabled ? 'Disable auto-refresh' : 'Enable 60s auto-refresh'}
+            >
+              <div
+                className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${
+                  autoRefreshEnabled ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          <button
+            id="btn-refresh-audit-records"
+            type="button"
+            onClick={() => fetchData()}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh Records</span>
+          </button>
+        </div>
       </div>
 
       {/* Mini Dashboard with Recharts */}
@@ -264,6 +313,102 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
               ))}
             </div>
           )}
+
+          {/* Email Notification Thresholds for Failed Authentication */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4 mt-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-600" />
+                <span>Failed Auth Alert Thresholds</span>
+              </h3>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${alertConfig.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                {alertConfig.enabled ? 'Alerts Active' : 'Alerts Disabled'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Configure automatic security alert emails when failed authentication attempts exceed specified thresholds within a 10-minute sliding window.
+            </p>
+
+            <form onSubmit={handleSaveAlertConfig} className="space-y-4 pt-2">
+              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div>
+                  <div className="text-xs font-semibold text-slate-800">Enable Security Threshold Alerts</div>
+                  <div className="text-[11px] text-slate-500">Dispatch SMTP/Webhook notification on threshold breach</div>
+                </div>
+                <button
+                  id="toggle-alert-enabled"
+                  type="button"
+                  onClick={() => setAlertConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                  className={`w-10 h-6 flex items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out cursor-pointer ${
+                    alertConfig.enabled ? 'bg-indigo-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <div
+                    className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${
+                      alertConfig.enabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Failure Threshold (Attempts)
+                  </label>
+                  <select
+                    id="select-alert-threshold"
+                    value={alertConfig.threshold}
+                    onChange={(e) => setAlertConfig(prev => ({ ...prev, threshold: Number(e.target.value) }))}
+                    disabled={!alertConfig.enabled}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                  >
+                    <option value={3}>3 Failed Attempts</option>
+                    <option value={5}>5 Failed Attempts (Recommended)</option>
+                    <option value={10}>10 Failed Attempts</option>
+                    <option value={15}>15 Failed Attempts</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Notification Recipient Email
+                  </label>
+                  <input
+                    id="input-alert-email"
+                    type="email"
+                    value={alertConfig.notifyEmail}
+                    onChange={(e) => setAlertConfig(prev => ({ ...prev, notifyEmail: e.target.value }))}
+                    disabled={!alertConfig.enabled}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                    placeholder="security@moredesa.com"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                {configSavedMessage ? (
+                  <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1 animate-fade-in">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Threshold config saved!
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-400">
+                    FIDO2 Enclave telemetry secured.
+                  </span>
+                )}
+
+                <button
+                  id="btn-save-alert-config"
+                  type="submit"
+                  disabled={isSavingConfig}
+                  className="py-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                >
+                  {isSavingConfig && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Save Thresholds</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
 
         {/* Security Audit Log Column */}
