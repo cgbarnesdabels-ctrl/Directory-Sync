@@ -19,7 +19,8 @@ import {
   Check, 
   History
 } from 'lucide-react';
-import type { RegisteredPasskey, AuditLog } from '../types/auth';
+import type { RegisteredPasskey, AuditLog, AuthAuditMetricsSummary, DateRangeSelection } from '../types/auth';
+import { AuthMetricsDashboard } from './AuthMetricsDashboard';
 
 interface CredentialsAuditProps {
   email: string;
@@ -28,15 +29,30 @@ interface CredentialsAuditProps {
 export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => {
   const [passkeys, setPasskeys] = useState<RegisteredPasskey[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [metrics, setMetrics] = useState<AuthAuditMetricsSummary | null>(null);
+  const [dateRange, setDateRange] = useState<DateRangeSelection>({
+    preset: '30',
+    startDate: '',
+    endDate: '',
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (customRange?: DateRangeSelection) => {
     setIsLoading(true);
     try {
-      const [keysRes, logsRes] = await Promise.all([
+      const activeRange = customRange || dateRange;
+      let metricsUrl = `/api/auth/audit-metrics?email=${encodeURIComponent(email)}`;
+      if (activeRange.preset === 'custom' && activeRange.startDate && activeRange.endDate) {
+        metricsUrl += `&startDate=${encodeURIComponent(activeRange.startDate)}&endDate=${encodeURIComponent(activeRange.endDate)}`;
+      } else {
+        metricsUrl += `&days=${encodeURIComponent(activeRange.preset || '30')}`;
+      }
+
+      const [keysRes, logsRes, metricsRes] = await Promise.all([
         fetch(`/api/auth/user-passkeys?email=${encodeURIComponent(email)}`),
         fetch('/api/auth/audit-logs'),
+        fetch(metricsUrl),
       ]);
 
       if (keysRes.ok) {
@@ -48,16 +64,53 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
         const logsData = await logsRes.json();
         setAuditLogs(logsData.logs || []);
       }
+
+      if (metricsRes.ok) {
+        const metricsData = await metricsRes.json();
+        setMetrics(metricsData);
+      }
     } catch (err) {
-      console.error('Failed to load credentials or audit logs:', err);
+      console.error('Failed to load credentials, audit logs, or metrics:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [email]);
+  }, [email, dateRange]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleDateRangeChange = (newRange: DateRangeSelection) => {
+    setDateRange(newRange);
+    fetchData(newRange);
+  };
+
+  const handleSimulateAttempt = async (status: 'success' | 'failed') => {
+    try {
+      const res = await fetch('/api/auth/simulate-auth-attempt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          status,
+          type: status === 'success' ? 'assertion_verified' : 'assertion_failed',
+          reason: status === 'failed' ? 'Biometric sensor timeout after 30s' : undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.metrics) {
+          setMetrics(data.metrics);
+        }
+        if (data.log) {
+          setAuditLogs(prev => [data.log, ...prev]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to simulate auth attempt:', err);
+    }
+  };
 
   const handleDeletePasskey = async (credentialId: string) => {
     if (!confirm('Are you sure you want to revoke this passkey? You will no longer be able to authenticate with this biometric credential.')) {
@@ -92,10 +145,11 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
             Registered Credentials &amp; Security Audit Trail
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Active FIDO2 credentials and tamper-evident event log for <span className="font-semibold text-slate-800">{email}</span>.
+            Active FIDO2 credentials, 30-day authentication analytics, and tamper-evident event log for <span className="font-semibold text-slate-800">{email}</span>.
           </p>
         </div>
         <button
+          id="btn-refresh-audit-records"
           type="button"
           onClick={fetchData}
           disabled={isLoading}
@@ -104,6 +158,20 @@ export const CredentialsAudit: React.FC<CredentialsAuditProps> = ({ email }) => 
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           <span>Refresh Records</span>
         </button>
+      </div>
+
+      {/* Mini Dashboard with Recharts */}
+      <div id="credentials-metrics-dashboard">
+        <AuthMetricsDashboard
+          metrics={metrics}
+          isLoading={isLoading}
+          onRefresh={() => fetchData()}
+          onSimulateAttempt={handleSimulateAttempt}
+          email={email}
+          auditLogs={auditLogs}
+          dateRange={dateRange}
+          onDateRangeChange={handleDateRangeChange}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

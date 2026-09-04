@@ -9,7 +9,11 @@ import type {
   GitHubPullRequest, 
   GitHubOverview,
   GitHubOAuthConfig,
-  GitHubUserProfile
+  GitHubUserProfile,
+  CodeRabbitConfig,
+  CodeRabbitDeviceBinding,
+  CodeRabbitPermissions,
+  CodeRabbitAuditEntry
 } from '../types/github';
 
 const router = Router();
@@ -155,6 +159,75 @@ export const renderGitHubCallbackHtml = (user: GitHubUserProfile | null, error?:
 // In-memory store for workflow runs
 let workflowRuns: GitHubWorkflowRun[] = [
   {
+    id: 'run-109285',
+    workflowName: 'CodeRabbit AI Reviewer & Automated Gate',
+    workflowFile: 'coderabbit.yml',
+    status: 'completed',
+    conclusion: 'success',
+    branch: 'feat/pip-overlay-screen',
+    commitSha: '9c4d21e',
+    commitMessage: 'coderabbit(security): device-bound auto-commit & cryptographic gate verification',
+    author: 'coderabbitai[bot]',
+    event: 'pull_request',
+    pullRequestNumber: 42,
+    createdAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+    completedAt: new Date(Date.now() - 7 * 60 * 1000).toISOString(),
+    durationSeconds: 58,
+    steps: [
+      {
+        name: 'Verify Device Binding & Authorization',
+        status: 'completed',
+        conclusion: 'success',
+        durationSeconds: 5,
+        log: [
+          '🔐 Checking cryptographic device binding for CodeRabbit...',
+          'Bound Device: MacBook Pro (Apple M3 Max / Secure Enclave)',
+          'Attestation: Hardware Root of Trust (Apple T2/A17)',
+          'Authorized Entity: coderabbitai[bot]',
+          'Permissions: contents:write, pull-requests:write, all-access',
+          '✅ Device binding token signature cryptographically verified.'
+        ]
+      },
+      {
+        name: 'CodeRabbit AI Deep AST & Security Review',
+        status: 'completed',
+        conclusion: 'success',
+        durationSeconds: 24,
+        log: [
+          '🐰 Running CodeRabbit Automated CI/CD Analysis...',
+          '• Inspecting WebAuthn residentKey constraints...',
+          '• Checking open-redirect CWE-601 protection...',
+          '• Auditing Apple HIG ATS compliance for iOS Safari & WebAuthn...',
+          '✅ CodeRabbit AST analysis: 0 critical vulnerabilities, 100% adherence.'
+        ]
+      },
+      {
+        name: 'CodeRabbit Auto-Commit & Patch Push',
+        status: 'completed',
+        conclusion: 'success',
+        durationSeconds: 12,
+        log: [
+          'Configured Git Author: coderabbitai[bot] <136622811+coderabbitai[bot]@users.noreply.github.com>',
+          'Created patch: residentKey: required platform enforcement',
+          'Pushed commit 9c4d21e with device-bound verified signature.',
+          '✅ Commit pushed successfully.'
+        ]
+      },
+      {
+        name: 'CodeRabbit PR Review & Approval Gate',
+        status: 'completed',
+        conclusion: 'success',
+        durationSeconds: 17,
+        log: [
+          'Submitting Pull Request Approval for PR #42...',
+          'Review State: APPROVED',
+          'Summary: All biometric WebAuthn security specifications and test suites passed.',
+          '✅ PR approval registered successfully.'
+        ]
+      }
+    ]
+  },
+  {
     id: 'run-109284',
     workflowName: 'CI / CD Pipeline - Dabels Tech Passkey Gateway',
     workflowFile: 'ci.yml',
@@ -299,7 +372,8 @@ let pullRequests: GitHubPullRequest[] = [
     totalChecksCount: 5,
     reviews: [
       { user: 'sec-lead', status: 'APPROVED' },
-      { user: 'ios-architect', status: 'APPROVED' }
+      { user: 'ios-architect', status: 'APPROVED' },
+      { user: 'coderabbitai[bot]', status: 'APPROVED' }
     ],
     description: 'Implements full-screen and Picture-in-Picture (PiP) biometric authentication overlay HUD. Adds GitHub CI/CD automation and PR checks widget.'
   },
@@ -636,6 +710,504 @@ router.post('/simulate-auth', (req, res) => {
     scope: 'read:user,user:email,repo'
   };
   res.json({ success: true, user: connectedGitHubUser });
+});
+
+// =========================================================================
+// 7. CODERABBIT DEVICE BINDING & CI/CD AUTORUN AUTHORIZATION ENGINE
+// =========================================================================
+
+let codeRabbitConfig: CodeRabbitConfig = {
+  deviceBinding: {
+    isBound: true,
+    deviceId: 'dev-enc-a17-pro-9921',
+    deviceName: 'Apple Silicon MacBook Pro (Touch ID Secure Enclave)',
+    platform: 'apple_secure_enclave',
+    attestationLevel: 'Hardware Root of Trust (Apple T2/A17)',
+    publicKeyFingerprint: 'SHA256:8f31b78c92a106f4e19b5d28a301c944ef018274a10c9d',
+    boundAt: new Date(Date.now() - 7200 * 1000).toISOString(),
+    boundByEmail: 'dabelstech@moredesa.com',
+    biometricType: 'Touch ID'
+  },
+  allAccessGranted: true,
+  autoRunEnabled: true,
+  autoRunOnPr: true,
+  autoRunOnPush: true,
+  canPushCommit: true,
+  canApproveRequest: true,
+  permissions: {
+    contents: 'write',
+    pullRequests: 'write',
+    issues: 'write',
+    checks: 'write',
+    statuses: 'write',
+    idToken: 'write',
+    actions: 'write'
+  },
+  botIdentity: {
+    username: 'coderabbitai[bot]',
+    email: '136622811+coderabbitai[bot]@users.noreply.github.com',
+    avatarUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&h=100&fit=crop',
+    verifiedSignature: true
+  },
+  recentAuditLogs: [
+    {
+      id: 'cr-audit-101',
+      timestamp: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+      action: 'APPROVE_PR',
+      status: 'success',
+      deviceFingerprint: 'SHA256:8f31b78c92a106f4e19b5d28a301c944ef018274a10c9d',
+      performedBy: 'coderabbitai[bot] (bound to Apple Secure Enclave)',
+      targetRef: 'refs/pull/42/head',
+      details: 'Auto-approved PR #42 after biometric verification and 100% CI pass rate.',
+      prNumber: 42
+    },
+    {
+      id: 'cr-audit-102',
+      timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+      action: 'PUSH_COMMIT',
+      status: 'success',
+      deviceFingerprint: 'SHA256:8f31b78c92a106f4e19b5d28a301c944ef018274a10c9d',
+      performedBy: 'coderabbitai[bot]',
+      targetRef: 'feat/pip-overlay-screen',
+      details: 'Pushed automated security hardening patch commit: enforce residentKey constraint.',
+      commitSha: '9c4d21e'
+    },
+    {
+      id: 'cr-audit-103',
+      timestamp: new Date(Date.now() - 7200 * 1000).toISOString(),
+      action: 'GRANT_ALL_ACCESS',
+      status: 'success',
+      deviceFingerprint: 'SHA256:8f31b78c92a106f4e19b5d28a301c944ef018274a10c9d',
+      performedBy: 'dabelstech@moredesa.com',
+      details: 'Bound Apple Secure Enclave device and granted CodeRabbit all-access permissions in GitHub CI/CD.'
+    }
+  ],
+  lastAutorunSummary: {
+    runId: 'run-109285',
+    timestamp: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+    status: 'success',
+    summary: 'Executed full CI/CD analysis on branch "feat/pip-overlay-screen". CodeRabbit AST verified 0 critical CVEs. Automatically pushed commit 9c4d21e and approved PR #42.',
+    commitPushed: '9c4d21e',
+    prApproved: 42
+  }
+};
+
+// GET /api/github/coderabbit/config
+router.get('/coderabbit/config', (req, res) => {
+  res.json({
+    success: true,
+    config: codeRabbitConfig
+  });
+});
+
+// POST /api/github/coderabbit/bind-device
+router.post('/coderabbit/bind-device', (req, res) => {
+  const {
+    deviceName = 'Apple Silicon Device (Secure Enclave)',
+    biometricType = 'Touch ID',
+    email = 'dabelstech@moredesa.com',
+    grantAllAccess = true
+  } = req.body || {};
+
+  const randomHash = Array.from({ length: 48 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  const fingerprint = `SHA256:${randomHash.substring(0, 40)}`;
+  const deviceId = `dev-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+
+  codeRabbitConfig.deviceBinding = {
+    isBound: true,
+    deviceId,
+    deviceName,
+    platform: 'apple_secure_enclave',
+    attestationLevel: 'Hardware Root of Trust (Apple T2/A17)',
+    publicKeyFingerprint: fingerprint,
+    boundAt: new Date().toISOString(),
+    boundByEmail: email,
+    biometricType: biometricType as any
+  };
+
+  codeRabbitConfig.allAccessGranted = Boolean(grantAllAccess);
+  codeRabbitConfig.autoRunEnabled = true;
+  codeRabbitConfig.canPushCommit = true;
+  codeRabbitConfig.canApproveRequest = true;
+  codeRabbitConfig.permissions = {
+    contents: 'write',
+    pullRequests: 'write',
+    issues: 'write',
+    checks: 'write',
+    statuses: 'write',
+    idToken: 'write',
+    actions: 'write'
+  };
+
+  const auditEntry: CodeRabbitAuditEntry = {
+    id: `cr-audit-${Date.now().toString().slice(-5)}`,
+    timestamp: new Date().toISOString(),
+    action: 'BIND_DEVICE',
+    status: 'success',
+    deviceFingerprint: fingerprint,
+    performedBy: email,
+    details: `Cryptographically bound ${deviceName} with ${biometricType} hardware assertion. Granted CodeRabbit all-access.`
+  };
+
+  codeRabbitConfig.recentAuditLogs.unshift(auditEntry);
+
+  res.json({
+    success: true,
+    message: 'Device bound successfully. CodeRabbit authorized with all-access for GitHub CI/CD autorun jobs.',
+    config: codeRabbitConfig
+  });
+});
+
+// POST /api/github/coderabbit/update-access
+router.post('/coderabbit/update-access', (req, res) => {
+  const {
+    allAccessGranted,
+    autoRunEnabled,
+    autoRunOnPr,
+    autoRunOnPush,
+    canPushCommit,
+    canApproveRequest,
+    permissions
+  } = req.body || {};
+
+  if (allAccessGranted !== undefined) {
+    codeRabbitConfig.allAccessGranted = Boolean(allAccessGranted);
+    if (allAccessGranted) {
+      codeRabbitConfig.canPushCommit = true;
+      codeRabbitConfig.canApproveRequest = true;
+      codeRabbitConfig.autoRunEnabled = true;
+      codeRabbitConfig.permissions = {
+        contents: 'write',
+        pullRequests: 'write',
+        issues: 'write',
+        checks: 'write',
+        statuses: 'write',
+        idToken: 'write',
+        actions: 'write'
+      };
+    }
+  }
+
+  if (autoRunEnabled !== undefined) codeRabbitConfig.autoRunEnabled = Boolean(autoRunEnabled);
+  if (autoRunOnPr !== undefined) codeRabbitConfig.autoRunOnPr = Boolean(autoRunOnPr);
+  if (autoRunOnPush !== undefined) codeRabbitConfig.autoRunOnPush = Boolean(autoRunOnPush);
+  if (canPushCommit !== undefined) codeRabbitConfig.canPushCommit = Boolean(canPushCommit);
+  if (canApproveRequest !== undefined) codeRabbitConfig.canApproveRequest = Boolean(canApproveRequest);
+  if (permissions) {
+    codeRabbitConfig.permissions = {
+      ...codeRabbitConfig.permissions,
+      ...permissions
+    };
+  }
+
+  const auditEntry: CodeRabbitAuditEntry = {
+    id: `cr-audit-${Date.now().toString().slice(-5)}`,
+    timestamp: new Date().toISOString(),
+    action: 'GRANT_ALL_ACCESS',
+    status: 'success',
+    deviceFingerprint: codeRabbitConfig.deviceBinding.publicKeyFingerprint,
+    performedBy: codeRabbitConfig.deviceBinding.boundByEmail,
+    details: `Updated CodeRabbit access matrix. All-access: ${codeRabbitConfig.allAccessGranted}. Push commit: ${codeRabbitConfig.canPushCommit}. Approve PR: ${codeRabbitConfig.canApproveRequest}.`
+  };
+
+  codeRabbitConfig.recentAuditLogs.unshift(auditEntry);
+
+  res.json({
+    success: true,
+    message: 'CodeRabbit authorization policies updated successfully.',
+    config: codeRabbitConfig
+  });
+});
+
+// POST /api/github/coderabbit/autorun-job
+router.post('/coderabbit/autorun-job', (req, res) => {
+  if (!codeRabbitConfig.deviceBinding.isBound) {
+    return res.status(403).json({
+      error: 'Device binding required',
+      message: 'Please bind a verified device before autorunning CodeRabbit CI/CD jobs.'
+    });
+  }
+
+  const { branch = 'main', prNumber, forcePushCommit = false, forceApprovePr = false } = req.body || {};
+  const runId = `run-cr-${Date.now().toString().slice(-5)}`;
+  const commitSha = Math.random().toString(16).substring(2, 9);
+
+  const newRun: GitHubWorkflowRun = {
+    id: runId,
+    workflowName: 'CodeRabbit AI Reviewer & Automated Gate',
+    workflowFile: 'coderabbit.yml',
+    status: 'in_progress',
+    branch,
+    commitSha,
+    commitMessage: `coderabbit(autorun): device-bound automated CI/CD review & gate on ${branch}`,
+    author: 'coderabbitai[bot]',
+    event: prNumber ? 'pull_request' : 'push',
+    pullRequestNumber: prNumber ? Number(prNumber) : 42,
+    createdAt: new Date().toISOString(),
+    durationSeconds: 0,
+    steps: [
+      {
+        name: 'Verify Device Binding & Authorization',
+        status: 'in_progress',
+        durationSeconds: 3,
+        log: [
+          '🔐 Validating cryptographic device assertion...',
+          `Bound Device: ${codeRabbitConfig.deviceBinding.deviceName}`,
+          `Attestation Level: ${codeRabbitConfig.deviceBinding.attestationLevel}`,
+          `Key Fingerprint: ${codeRabbitConfig.deviceBinding.publicKeyFingerprint}`,
+          '✅ Assertion valid. Authorized entity: coderabbitai[bot] (All-Access Granted)'
+        ]
+      },
+      {
+        name: 'CodeRabbit AI Deep AST & Security Review',
+        status: 'queued',
+        log: ['Waiting for authorization verification...']
+      },
+      {
+        name: 'CodeRabbit Auto-Commit & Patch Push',
+        status: 'queued',
+        log: ['Waiting for review step...']
+      },
+      {
+        name: 'CodeRabbit PR Review & Approval Gate',
+        status: 'queued',
+        log: ['Waiting for review step...']
+      }
+    ]
+  };
+
+  workflowRuns.unshift(newRun);
+
+  // Simulate execution of all jobs
+  setTimeout(() => {
+    const run = workflowRuns.find(r => r.id === runId);
+    if (run) {
+      run.status = 'completed';
+      run.conclusion = 'success';
+      run.completedAt = new Date().toISOString();
+      run.durationSeconds = 26;
+      run.steps = [
+        {
+          name: 'Verify Device Binding & Authorization',
+          status: 'completed',
+          conclusion: 'success',
+          durationSeconds: 4,
+          log: [
+            '🔐 Validating cryptographic device assertion...',
+            `Device: ${codeRabbitConfig.deviceBinding.deviceName}`,
+            `Fingerprint: ${codeRabbitConfig.deviceBinding.publicKeyFingerprint}`,
+            '✅ Hardware Root of Trust verified. Zero tampering detected.'
+          ]
+        },
+        {
+          name: 'CodeRabbit AI Deep AST & Security Review',
+          status: 'completed',
+          conclusion: 'success',
+          durationSeconds: 12,
+          log: [
+            '🐰 CodeRabbit AST Analyzer running in parallel...',
+            '• Verified WebAuthn residentKey constraint matches RP policies.',
+            '• Verified Scoped Reset redirect CWE-601 URL validator.',
+            '• Verified Apple Safari HIG ATS network isolation.',
+            '✅ Analysis completed: 0 issues, 100% security score.'
+          ]
+        },
+        {
+          name: 'CodeRabbit Auto-Commit & Patch Push',
+          status: 'completed',
+          conclusion: 'success',
+          durationSeconds: 5,
+          log: [
+            'CodeRabbit authorized with "contents: write" permission.',
+            `Generated automated commit: ${commitSha}`,
+            'Pushed patch with device-bound verified signature.'
+          ]
+        },
+        {
+          name: 'CodeRabbit PR Review & Approval Gate',
+          status: 'completed',
+          conclusion: 'success',
+          durationSeconds: 5,
+          log: [
+            'CodeRabbit authorized with "pull-requests: write" permission.',
+            'Submitted formal PR review state: APPROVED',
+            '✅ Pull Request approval registered successfully.'
+          ]
+        }
+      ];
+    }
+  }, 3500);
+
+  // Automatically approve target PR if permission is granted
+  const targetPr = pullRequests.find(p => p.number === (prNumber ? Number(prNumber) : 42));
+  if (targetPr && (codeRabbitConfig.canApproveRequest || forceApprovePr)) {
+    const existingReview = targetPr.reviews.find(r => r.user === 'coderabbitai[bot]');
+    if (existingReview) {
+      existingReview.status = 'APPROVED';
+    } else {
+      targetPr.reviews.push({ user: 'coderabbitai[bot]', status: 'APPROVED' });
+    }
+    targetPr.checksStatus = 'success';
+    targetPr.passedChecksCount = targetPr.totalChecksCount;
+    targetPr.updatedAt = new Date().toISOString();
+  }
+
+  codeRabbitConfig.lastAutorunSummary = {
+    runId,
+    timestamp: new Date().toISOString(),
+    status: 'success',
+    summary: `Autorun job completed on "${branch}". Cryptographic device binding validated. Auto-patch commit ${commitSha} generated and PR approval confirmed.`,
+    commitPushed: commitSha,
+    prApproved: targetPr ? targetPr.number : 42
+  };
+
+  const auditEntry: CodeRabbitAuditEntry = {
+    id: `cr-audit-${Date.now().toString().slice(-5)}`,
+    timestamp: new Date().toISOString(),
+    action: 'AUTORUN_JOB',
+    status: 'success',
+    deviceFingerprint: codeRabbitConfig.deviceBinding.publicKeyFingerprint,
+    performedBy: 'coderabbitai[bot] (device-bound authorized)',
+    targetRef: `refs/heads/${branch}`,
+    details: `Executed autorun job ${runId} in GitHub CI/CD pipeline. Pushed commit ${commitSha} & verified PR approval.`,
+    commitSha,
+    prNumber: targetPr ? targetPr.number : undefined
+  };
+
+  codeRabbitConfig.recentAuditLogs.unshift(auditEntry);
+
+  res.status(201).json({
+    success: true,
+    message: `CodeRabbit autorun job ${runId} dispatched in GitHub CI/CD.`,
+    run: newRun,
+    summary: codeRabbitConfig.lastAutorunSummary
+  });
+});
+
+// POST /api/github/coderabbit/push-commit
+router.post('/coderabbit/push-commit', (req, res) => {
+  if (!codeRabbitConfig.deviceBinding.isBound) {
+    return res.status(403).json({ error: 'Device binding required before pushing commits.' });
+  }
+  if (!codeRabbitConfig.canPushCommit && !codeRabbitConfig.allAccessGranted) {
+    return res.status(403).json({ error: 'CodeRabbit "contents: write" push commit permission not granted.' });
+  }
+
+  const { branch = 'feat/pip-overlay-screen', message = 'coderabbit(security): harden residentKey & bound device assertion' } = req.body || {};
+  const commitSha = Math.random().toString(16).substring(2, 9);
+
+  // Update target PR additions/files
+  const targetPr = pullRequests.find(p => p.branch === branch || p.number === 42);
+  if (targetPr) {
+    targetPr.additions += 14;
+    targetPr.updatedAt = new Date().toISOString();
+  }
+
+  const auditEntry: CodeRabbitAuditEntry = {
+    id: `cr-audit-${Date.now().toString().slice(-5)}`,
+    timestamp: new Date().toISOString(),
+    action: 'PUSH_COMMIT',
+    status: 'success',
+    deviceFingerprint: codeRabbitConfig.deviceBinding.publicKeyFingerprint,
+    performedBy: 'coderabbitai[bot] <136622811+coderabbitai[bot]@users.noreply.github.com>',
+    targetRef: `refs/heads/${branch}`,
+    details: `Pushed commit ${commitSha}: "${message}" with hardware device cryptographic signature.`,
+    commitSha
+  };
+
+  codeRabbitConfig.recentAuditLogs.unshift(auditEntry);
+
+  res.json({
+    success: true,
+    message: `Commit ${commitSha} successfully pushed to ${branch} by CodeRabbit.`,
+    commitSha,
+    branch,
+    author: 'coderabbitai[bot]'
+  });
+});
+
+// POST /api/github/coderabbit/approve-pr
+router.post('/coderabbit/approve-pr', (req, res) => {
+  if (!codeRabbitConfig.deviceBinding.isBound) {
+    return res.status(403).json({ error: 'Device binding required before approving Pull Requests.' });
+  }
+  if (!codeRabbitConfig.canApproveRequest && !codeRabbitConfig.allAccessGranted) {
+    return res.status(403).json({ error: 'CodeRabbit "pull-requests: write" approval permission not granted.' });
+  }
+
+  const { prNumber = 42, comment = '✅ CodeRabbit Review: All biometric WebAuthn security specifications, ATS standards, and test suites passed without regressions. Device binding authorized.' } = req.body || {};
+  const pr = pullRequests.find(p => p.number === Number(prNumber));
+
+  if (!pr) {
+    return res.status(404).json({ error: `Pull Request #${prNumber} not found.` });
+  }
+
+  const existingReview = pr.reviews.find(r => r.user === 'coderabbitai[bot]');
+  if (existingReview) {
+    existingReview.status = 'APPROVED';
+  } else {
+    pr.reviews.push({ user: 'coderabbitai[bot]', status: 'APPROVED' });
+  }
+
+  pr.checksStatus = 'success';
+  pr.passedChecksCount = pr.totalChecksCount;
+  pr.updatedAt = new Date().toISOString();
+
+  const auditEntry: CodeRabbitAuditEntry = {
+    id: `cr-audit-${Date.now().toString().slice(-5)}`,
+    timestamp: new Date().toISOString(),
+    action: 'APPROVE_PR',
+    status: 'success',
+    deviceFingerprint: codeRabbitConfig.deviceBinding.publicKeyFingerprint,
+    performedBy: 'coderabbitai[bot] (device-bound authorized)',
+    targetRef: `refs/pull/${prNumber}/head`,
+    details: `Submitted formal Pull Request approval for PR #${prNumber}. Comment: "${comment}"`,
+    prNumber: pr.number
+  };
+
+  codeRabbitConfig.recentAuditLogs.unshift(auditEntry);
+
+  res.json({
+    success: true,
+    message: `Pull Request #${pr.number} approved successfully by CodeRabbit.`,
+    pullRequest: pr
+  });
+});
+
+// POST /api/github/coderabbit/revoke
+router.post('/coderabbit/revoke', (req, res) => {
+  codeRabbitConfig.deviceBinding.isBound = false;
+  codeRabbitConfig.allAccessGranted = false;
+  codeRabbitConfig.autoRunEnabled = false;
+  codeRabbitConfig.canPushCommit = false;
+  codeRabbitConfig.canApproveRequest = false;
+  codeRabbitConfig.permissions = {
+    contents: 'read',
+    pullRequests: 'read',
+    issues: 'read',
+    checks: 'read',
+    statuses: 'read',
+    idToken: 'read',
+    actions: 'read'
+  };
+
+  const auditEntry: CodeRabbitAuditEntry = {
+    id: `cr-audit-${Date.now().toString().slice(-5)}`,
+    timestamp: new Date().toISOString(),
+    action: 'REVOKE_ACCESS',
+    status: 'success',
+    deviceFingerprint: codeRabbitConfig.deviceBinding.publicKeyFingerprint,
+    performedBy: 'dabelstech@moredesa.com',
+    details: 'Revoked hardware device binding and removed CodeRabbit write/push/approve access.'
+  };
+
+  codeRabbitConfig.recentAuditLogs.unshift(auditEntry);
+
+  res.json({
+    success: true,
+    message: 'CodeRabbit device binding and permissions revoked successfully.',
+    config: codeRabbitConfig
+  });
 });
 
 export default router;

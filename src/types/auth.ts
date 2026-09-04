@@ -67,3 +67,37 @@ export interface BiometricOverlayState {
   preferMode: OverlayMode;
 }
 
+export interface DailyAuthMetric {
+  date: string;
+  fullDate: string;
+  successful: number;
+  failed: number;
+  total: number;
+  passkeySuccessful: number;
+  passwordOrResetSuccessful: number;
+  failedBiometric: number;
+  failedOther: number;
+  successRate: number;
+}
+
+export interface AuthAuditMetricsSummary {
+  days: number;
+  startDate?: string;
+  endDate?: string;
+  totalAttempts: number;
+  successfulAttempts: number;
+  failedAttempts: number;
+  successRate: number;
+  passkeySharePercentage: number;
+  peakDay: { date: string; attempts: number };
+  dailyMetrics: DailyAuthMetric[];
+  factorDistribution: { name: string; value: number; color: string }[];
+  failureDistribution: { name: string; value: number; color: string }[];
+}
+
+export interface DateRangeSelection {
+  preset: '7' | '14' | '30' | '60' | '90' | 'custom';
+  startDate: string;
+  endDate: string;
+}
+

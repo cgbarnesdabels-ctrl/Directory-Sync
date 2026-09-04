@@ -1,6 +1,6 @@
 {
   "name": "Dabels Tech Passkey & Auth Gateway",
-  "description": "WebAuthn passkey gateway with GitHub CI/CD & PR workflows, scoped reset redirect engine, and biometric screen overlay with Picture-in-Picture (PiP) and Pop triggers.",
+  "description": "WebAuthn passkey gateway with GitHub CI/CD & PR workflows, CodeRabbit device binding autorun, commit push & PR approval gate, scoped reset redirect engine, biometric overlay (PiP/Pop), Recharts audit analytics, and iOS mobile pop widget.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

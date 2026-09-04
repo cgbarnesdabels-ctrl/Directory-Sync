@@ -94,3 +94,64 @@ export interface GitHubUserProfile {
   scope: string;
 }
 
+export interface CodeRabbitPermissions {
+  contents: 'read' | 'write';
+  pullRequests: 'read' | 'write';
+  issues: 'read' | 'write';
+  checks: 'read' | 'write';
+  statuses: 'read' | 'write';
+  idToken: 'read' | 'write';
+  actions: 'read' | 'write';
+}
+
+export interface CodeRabbitDeviceBinding {
+  isBound: boolean;
+  deviceId: string;
+  deviceName: string;
+  platform: 'apple_secure_enclave' | 'fido2_platform' | 'workstation_token';
+  attestationLevel: 'FIDO2 L2 Resident Key' | 'Hardware Root of Trust (Apple T2/A17)' | 'Software Attested';
+  publicKeyFingerprint: string;
+  boundAt: string;
+  boundByEmail: string;
+  biometricType: 'Touch ID' | 'Face ID' | 'FIDO2 Security Key' | 'Device Key';
+}
+
+export interface CodeRabbitAuditEntry {
+  id: string;
+  timestamp: string;
+  action: 'BIND_DEVICE' | 'GRANT_ALL_ACCESS' | 'AUTORUN_JOB' | 'PUSH_COMMIT' | 'APPROVE_PR' | 'REVOKE_ACCESS';
+  status: 'success' | 'failed' | 'pending';
+  deviceFingerprint: string;
+  performedBy: string;
+  targetRef?: string;
+  details: string;
+  commitSha?: string;
+  prNumber?: number;
+}
+
+export interface CodeRabbitConfig {
+  deviceBinding: CodeRabbitDeviceBinding;
+  allAccessGranted: boolean;
+  autoRunEnabled: boolean;
+  autoRunOnPr: boolean;
+  autoRunOnPush: boolean;
+  canPushCommit: boolean;
+  canApproveRequest: boolean;
+  permissions: CodeRabbitPermissions;
+  botIdentity: {
+    username: string;
+    email: string;
+    avatarUrl: string;
+    verifiedSignature: boolean;
+  };
+  recentAuditLogs: CodeRabbitAuditEntry[];
+  lastAutorunSummary?: {
+    runId: string;
+    timestamp: string;
+    status: 'success' | 'in_progress' | 'failed';
+    summary: string;
+    commitPushed?: string;
+    prApproved?: number;
+  };
+}
+

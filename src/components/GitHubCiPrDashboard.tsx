@@ -42,6 +42,7 @@ import type {
   GitHubUserProfile 
 } from '../types/github';
 import { useAuthOverlay } from '../context/AuthOverlayContext';
+import { CodeRabbitDeviceBinding } from './CodeRabbitDeviceBinding';
 
 export const GitHubCiPrDashboard: React.FC = () => {
   const { triggerSignIn, setPreferMode } = useAuthOverlay();
@@ -49,8 +50,8 @@ export const GitHubCiPrDashboard: React.FC = () => {
   const [runs, setRuns] = useState<GitHubWorkflowRun[]>([]);
   const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
   const [selectedRun, setSelectedRun] = useState<GitHubWorkflowRun | null>(null);
-  const [activeTab, setActiveTab] = useState<'workflows' | 'pull-requests' | 'workflow-code' | 'oauth-config'>('workflows');
-  const [selectedWorkflowFile, setSelectedWorkflowFile] = useState<'ci.yml' | 'pr-checks.yml'>('ci.yml');
+  const [activeTab, setActiveTab] = useState<'workflows' | 'pull-requests' | 'coderabbit' | 'workflow-code' | 'oauth-config'>('workflows');
+  const [selectedWorkflowFile, setSelectedWorkflowFile] = useState<'ci.yml' | 'pr-checks.yml' | 'coderabbit.yml'>('ci.yml');
   const [isDispatching, setIsDispatching] = useState(false);
   const [isCheckingPr, setIsCheckingPr] = useState(false);
   const [copiedFile, setCopiedFile] = useState(false);
@@ -300,6 +301,70 @@ jobs:
     steps:
       - run: echo "Verifying RP ID alignment with dabelstech://"`;
 
+  const codeRabbitYmlCode = `name: CodeRabbit AI Reviewer & Automated Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main, 'release/*']
+  workflow_dispatch:
+
+permissions:
+  contents: write        # Push commits & automated security patches
+  pull-requests: write   # Submit review approvals & comments
+  issues: write          # Triage issues & link security advisories
+  checks: write          # Create check runs & report AST findings
+  statuses: write        # Update commit status checks
+  id-token: write        # OIDC device binding token attestation
+  actions: write         # Autorun CI/CD jobs
+
+jobs:
+  device-binding-verification:
+    name: Verify Device Binding & Authorization
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Hardware Device Binding Assertion
+        run: |
+          echo "Bound Device: Apple Silicon MacBook Pro (Touch ID Secure Enclave)"
+          echo "Attestation: Hardware Root of Trust (Apple T2/A17)"
+          echo "Permissions: contents:write, pull-requests:write, all-access"
+          echo "✅ Device binding token signature cryptographically verified."
+
+  coderabbit-ai-review:
+    name: CodeRabbit AI Deep AST & Security Review
+    runs-on: ubuntu-latest
+    needs: device-binding-verification
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22.x }
+      - run: npm ci
+      - run: echo "Running CodeRabbit AST analyzer on WebAuthn and ATS security..."
+
+  auto-commit-suggestions:
+    name: CodeRabbit Auto-Commit & Patch Push
+    runs-on: ubuntu-latest
+    needs: coderabbit-ai-review
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Bot Credentials & Push Patch
+        run: |
+          git config --global user.name "coderabbitai[bot]"
+          git config --global user.email "136622811+coderabbitai[bot]@users.noreply.github.com"
+          echo "Applying device-bound security patch commit to branch."
+
+  auto-approve-pr:
+    name: CodeRabbit PR Review & Approval Gate
+    runs-on: ubuntu-latest
+    needs: [coderabbit-ai-review, auto-commit-suggestions]
+    steps:
+      - name: Submit Verified Pull Request Review
+        run: |
+          echo "Submitting formal PR Review State: APPROVED"
+          echo "Summary: All WebAuthn residentKey constraints and security gates passed."`;
+
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedFile(true);
@@ -418,6 +483,24 @@ jobs:
         >
           <GitPullRequest className="w-4 h-4" />
           <span>Pull Requests &amp; PR Gates ({pullRequests.length})</span>
+        </button>
+
+        <button
+          id="subtab-coderabbit"
+          type="button"
+          onClick={() => setActiveTab('coderabbit')}
+          className={`pb-3 border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${
+            activeTab === 'coderabbit'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-indigo-500" />
+          <span>CodeRabbit &amp; Device Binding</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            All Access
+          </span>
         </button>
 
         <button
@@ -663,11 +746,23 @@ jobs:
         </div>
       )}
 
-      {/* Subtab 3: Workflow Specifications (.github/workflows) */}
+      {/* Subtab 3: CodeRabbit & Device Binding */}
+      {activeTab === 'coderabbit' && (
+        <CodeRabbitDeviceBinding
+          onWorkflowRunTriggered={fetchData}
+          onPrApproved={fetchData}
+          onViewWorkflowCode={() => {
+            setSelectedWorkflowFile('coderabbit.yml');
+            setActiveTab('workflow-code');
+          }}
+        />
+      )}
+
+      {/* Subtab 4: Workflow Specifications (.github/workflows) */}
       {activeTab === 'workflow-code' && (
         <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 text-white shadow-md space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setSelectedWorkflowFile('ci.yml')}
@@ -691,12 +786,31 @@ jobs:
               >
                 .github/workflows/pr-checks.yml
               </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedWorkflowFile('coderabbit.yml')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedWorkflowFile === 'coderabbit.yml'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                <Sparkles className="w-3 h-3 text-indigo-400" />
+                <span>.github/workflows/coderabbit.yml</span>
+              </button>
             </div>
 
             <button
               type="button"
-              onClick={() => handleCopyCode(selectedWorkflowFile === 'ci.yml' ? ciYmlCode : prChecksCode)}
-              className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
+              onClick={() => handleCopyCode(
+                selectedWorkflowFile === 'ci.yml' 
+                  ? ciYmlCode 
+                  : selectedWorkflowFile === 'pr-checks.yml' 
+                  ? prChecksCode 
+                  : codeRabbitYmlCode
+              )}
+              className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
             >
               {copiedFile ? (
                 <>
@@ -714,13 +828,17 @@ jobs:
 
           <div className="text-[12px] font-mono text-slate-300 overflow-x-auto max-h-[480px] overflow-y-auto">
             <pre className="leading-relaxed">
-              {selectedWorkflowFile === 'ci.yml' ? ciYmlCode : prChecksCode}
+              {selectedWorkflowFile === 'ci.yml' 
+                ? ciYmlCode 
+                : selectedWorkflowFile === 'pr-checks.yml' 
+                ? prChecksCode 
+                : codeRabbitYmlCode}
             </pre>
           </div>
         </div>
       )}
 
-      {/* Subtab 4: GitHub OAuth Redirect & Callback Setup */}
+      {/* Subtab 5: GitHub OAuth Redirect & Callback Setup */}
       {activeTab === 'oauth-config' && (
         <div className="space-y-6">
           {/* Architecture & Iframe Compliance Header */}

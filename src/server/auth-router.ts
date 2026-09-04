@@ -18,6 +18,8 @@ import {
   deletePasskeyFromDB,
   getAuditLogs,
   addAuditLog,
+  get30DayAuditMetrics,
+  getAuditMetrics,
   getUserByEmail,
 } from './auth-handlers';
 
@@ -422,8 +424,53 @@ router.delete('/user-passkeys/:credentialId', async (req: Request, res: Response
 
 router.get('/audit-logs', (req: Request, res: Response) => {
   const email = req.query.email as string | undefined;
-  const logs = getAuditLogs(email);
+  const date = req.query.date as string | undefined;
+  const logs = getAuditLogs(email, date);
   return res.json({ logs });
+});
+
+/**
+ * 9. AUTHENTICATION METRICS (FOR RECHARTS DASHBOARD WITH CUSTOM TIMEFRAMES)
+ */
+router.get('/audit-metrics', (req: Request, res: Response) => {
+  const email = req.query.email as string | undefined;
+  const days = req.query.days ? parseInt(req.query.days as string, 10) : undefined;
+  const startDate = req.query.startDate as string | undefined;
+  const endDate = req.query.endDate as string | undefined;
+  const metrics = getAuditMetrics(email, days, startDate, endDate);
+  return res.json(metrics);
+});
+
+/**
+ * 10. SIMULATE AUTHENTICATION ATTEMPT (FOR LIVE AUDIT & CHART TESTING)
+ */
+router.post('/simulate-auth-attempt', (req: Request, res: Response) => {
+  const { 
+    type = 'assertion_verified', 
+    email = 'dabelstech@moredesa.com', 
+    status = 'success', 
+    reason 
+  } = req.body;
+
+  let logEntry;
+  if (status === 'success') {
+    logEntry = addAuditLog(
+      type === 'passkey_registered' ? 'passkey_registered' : 'assertion_verified',
+      email,
+      `Live simulated passkey assertion verified for ${email} (FIDO2 WebAuthn User Verified: true)`,
+      { ip: req.ip, userAgent: req.headers['user-agent'] }
+    );
+  } else {
+    logEntry = addAuditLog(
+      'assertion_failed',
+      email,
+      `Live simulated authentication failure for ${email}: ${reason || 'User verification timed out'}`,
+      { ip: req.ip, userAgent: req.headers['user-agent'] }
+    );
+  }
+
+  const updatedMetrics = get30DayAuditMetrics(email, 30);
+  return res.json({ success: true, log: logEntry, metrics: updatedMetrics });
 });
 
 router.get('/system-config', (req: Request, res: Response) => {

@@ -18,7 +18,7 @@ const usersDB = new Map<string, UserAccount>();
 const resetTokensDB = new Map<string, PasswordResetToken>();
 const auditLogs: AuditLogEntry[] = [];
 
-// Seed default users
+// Seed default users and 30-day historical audit logs
 function seedInitialData() {
   const seedEmails = ['dabelstech@moredesa.com', 'admin@dabelstech.com'];
   for (const email of seedEmails) {
@@ -27,12 +27,120 @@ function seedInitialData() {
         id: `usr_${crypto.randomBytes(8).toString('hex')}`,
         email,
         displayName: email.split('@')[0],
-        passkeys: [],
-        createdAt: new Date().toISOString(),
+        passkeys: [
+          {
+            credentialId: 'cred_apple_touchid_enclave_98af21b',
+            publicKey: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE9G8h7K2p1w_touchid_enclave_sample',
+            counter: 42,
+            transports: ['internal', 'hybrid'],
+            deviceType: 'platform',
+            backedUp: true,
+            createdAt: new Date(Date.now() - 28 * 24 * 3600 * 1000).toISOString(),
+            nickname: 'MacBook Pro Secure Enclave (Touch ID)',
+          }
+        ],
+        createdAt: new Date(Date.now() - 35 * 24 * 3600 * 1000).toISOString(),
         updatedAt: new Date().toISOString(),
       });
     }
   }
+
+  // Pre-seed 30 days of realistic authentication attempts (Aug 5 -> Sep 4, 2026)
+  const now = Date.now();
+  const sampleIps = ['192.168.1.104', '10.0.0.15', '172.16.4.22', '192.168.0.88'];
+  const sampleUAs = [
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1',
+  ];
+
+  // Failure reasons
+  const failReasons = [
+    'Biometric sensor timeout after 30s of inactivity',
+    'Biometric authentication cancelled by user on device prompt',
+    'Assertion signature verification failed (device challenge mismatch)',
+    'WebAuthn assertion token expired before submission',
+  ];
+
+  for (let dayOffset = 89; dayOffset >= 0; dayOffset--) {
+    const dayDate = new Date(now - dayOffset * 24 * 3600 * 1000);
+    const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6;
+    
+    // 5 to 11 successful attempts per weekday, 2 to 6 on weekends
+    const successCount = isWeekend ? Math.floor(Math.random() * 4) + 3 : Math.floor(Math.random() * 6) + 6;
+    // 0 to 1 failure on most days, occasionally 2
+    const failCount = Math.random() < 0.35 ? (Math.random() < 0.2 ? 2 : 1) : 0;
+
+    // Generate successes across the day
+    for (let i = 0; i < successCount; i++) {
+      const hour = Math.floor(Math.random() * 14) + 8; // Between 8 AM and 10 PM
+      const minute = Math.floor(Math.random() * 60);
+      const second = Math.floor(Math.random() * 60);
+      const logTime = new Date(dayDate);
+      logTime.setHours(hour, minute, second);
+
+      const isRegistration = dayOffset === 28 && i === 0;
+      const isReset = Math.random() < 0.08;
+      const email = 'dabelstech@moredesa.com';
+
+      if (isRegistration) {
+        auditLogs.push({
+          id: `log_seed_reg_${dayOffset}_${i}`,
+          timestamp: logTime.toISOString(),
+          type: 'passkey_registered',
+          email,
+          details: `New passkey registered for ${email} (Device: platform Touch ID, Enclave Bound)`,
+          ip: sampleIps[i % sampleIps.length],
+          userAgent: sampleUAs[0],
+        });
+      } else if (isReset) {
+        auditLogs.push({
+          id: `log_seed_rst_${dayOffset}_${i}`,
+          timestamp: logTime.toISOString(),
+          type: 'password_reset_confirmed',
+          email,
+          details: `Password reset successfully confirmed using scoped reset link (auth:reset-password)`,
+          ip: sampleIps[i % sampleIps.length],
+          userAgent: sampleUAs[1],
+        });
+      } else {
+        const counter = 100 + (30 - dayOffset) * 5 + i;
+        auditLogs.push({
+          id: `log_seed_ast_${dayOffset}_${i}`,
+          timestamp: logTime.toISOString(),
+          type: 'assertion_verified',
+          email,
+          details: `Successful passkey biometric assertion for ${email} (FIDO2 Counter: ${counter}, User Verified: true)`,
+          ip: sampleIps[i % sampleIps.length],
+          userAgent: sampleUAs[i % sampleUAs.length],
+        });
+      }
+    }
+
+    // Generate failures
+    for (let f = 0; f < failCount; f++) {
+      const hour = Math.floor(Math.random() * 14) + 9;
+      const minute = Math.floor(Math.random() * 60);
+      const second = Math.floor(Math.random() * 60);
+      const logTime = new Date(dayDate);
+      logTime.setHours(hour, minute, second);
+      const email = 'dabelstech@moredesa.com';
+      const reason = failReasons[(dayOffset + f) % failReasons.length];
+
+      auditLogs.push({
+        id: `log_seed_fail_${dayOffset}_${f}`,
+        timestamp: logTime.toISOString(),
+        type: 'assertion_failed',
+        email,
+        details: `Passkey authentication attempt failed for ${email}: ${reason}`,
+        ip: sampleIps[(f + 2) % sampleIps.length],
+        userAgent: sampleUAs[(f + 1) % sampleUAs.length],
+      });
+    }
+  }
+
+  // Sort auditLogs newest first
+  auditLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 seedInitialData();
 
@@ -55,18 +163,220 @@ export function addAuditLog(
     userAgent: meta?.userAgent,
   };
   auditLogs.unshift(entry);
-  if (auditLogs.length > 200) {
+  if (auditLogs.length > 2000) {
     auditLogs.pop();
   }
   return entry;
 }
 
-export function getAuditLogs(email?: string): AuditLogEntry[] {
+export function getAuditLogs(email?: string, date?: string): AuditLogEntry[] {
+  let logs = auditLogs;
   if (email) {
-    return auditLogs.filter(l => l.email.toLowerCase() === email.toLowerCase());
+    logs = logs.filter(l => l.email.toLowerCase() === email.toLowerCase());
   }
-  return auditLogs;
+  if (date) {
+    logs = logs.filter(l => l.timestamp.startsWith(date));
+  }
+  return logs;
 }
+
+/**
+ * Aggregates authentication attempts over an arbitrary date range or N days
+ */
+export function getAuditMetrics(
+  email?: string,
+  days?: number,
+  startDateStr?: string,
+  endDateStr?: string
+) {
+  const filteredLogs = getAuditLogs(email);
+  const now = new Date();
+  
+  // Format short date (e.g. "Aug 06") and ISO date string "YYYY-MM-DD"
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  const dailyMap = new Map<string, {
+    date: string;
+    fullDate: string;
+    successful: number;
+    failed: number;
+    total: number;
+    passkeySuccessful: number;
+    passwordOrResetSuccessful: number;
+    failedBiometric: number;
+    failedOther: number;
+    successRate: number;
+  }>();
+
+  let daysCount = 30;
+  let computedStartDate = '';
+  let computedEndDate = '';
+
+  if (startDateStr && endDateStr) {
+    // Custom date range
+    const start = new Date(`${startDateStr}T00:00:00`);
+    const end = new Date(`${endDateStr}T23:59:59`);
+    
+    // Sort chronologically if inverted
+    const actualStart = start.getTime() <= end.getTime() ? start : end;
+    const actualEnd = start.getTime() <= end.getTime() ? end : start;
+
+    const cur = new Date(actualStart);
+    cur.setHours(12, 0, 0, 0); // avoid daylight savings time boundary anomalies
+    const endTime = actualEnd.getTime();
+    
+    let count = 0;
+    while (cur.getTime() <= endTime && count < 365) {
+      const yyyy = cur.getFullYear();
+      const mm = String(cur.getMonth() + 1).padStart(2, '0');
+      const dd = String(cur.getDate()).padStart(2, '0');
+      const fullDate = `${yyyy}-${mm}-${dd}`;
+      const dateLabel = `${monthNames[cur.getMonth()]} ${dd}`;
+
+      if (count === 0) computedStartDate = fullDate;
+      computedEndDate = fullDate;
+
+      dailyMap.set(fullDate, {
+        date: dateLabel,
+        fullDate,
+        successful: 0,
+        failed: 0,
+        total: 0,
+        passkeySuccessful: 0,
+        passwordOrResetSuccessful: 0,
+        failedBiometric: 0,
+        failedOther: 0,
+        successRate: 100,
+      });
+
+      cur.setDate(cur.getDate() + 1);
+      count++;
+    }
+    daysCount = count;
+  } else {
+    const numDays = days && days > 0 ? Math.min(days, 365) : 30;
+    daysCount = numDays;
+
+    for (let i = numDays - 1; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 3600 * 1000);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const fullDate = `${yyyy}-${mm}-${dd}`;
+      const dateLabel = `${monthNames[d.getMonth()]} ${dd}`;
+
+      if (i === numDays - 1) computedStartDate = fullDate;
+      if (i === 0) computedEndDate = fullDate;
+
+      dailyMap.set(fullDate, {
+        date: dateLabel,
+        fullDate,
+        successful: 0,
+        failed: 0,
+        total: 0,
+        passkeySuccessful: 0,
+        passwordOrResetSuccessful: 0,
+        failedBiometric: 0,
+        failedOther: 0,
+        successRate: 100,
+      });
+    }
+  }
+
+  // Count metrics from audit logs
+  let totalAttempts = 0;
+  let totalSuccessful = 0;
+  let totalFailed = 0;
+  let passkeySuccessfulTotal = 0;
+  let passwordResetSuccessfulTotal = 0;
+  let biometricFailedTotal = 0;
+  let otherFailedTotal = 0;
+
+  for (const log of filteredLogs) {
+    const logDate = new Date(log.timestamp);
+    const yyyy = logDate.getFullYear();
+    const mm = String(logDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(logDate.getDate()).padStart(2, '0');
+    const fullDate = `${yyyy}-${mm}-${dd}`;
+
+    const dayRecord = dailyMap.get(fullDate);
+    if (!dayRecord) continue; // Outside the window
+
+    const isSuccess = log.type === 'assertion_verified' || 
+                      log.type === 'passkey_registered' || 
+                      log.type === 'password_reset_confirmed';
+    const isFail = log.type === 'assertion_failed' || log.type.includes('failed');
+
+    if (isSuccess) {
+      dayRecord.successful++;
+      dayRecord.total++;
+      totalAttempts++;
+      totalSuccessful++;
+
+      if (log.type === 'assertion_verified' || log.type === 'passkey_registered') {
+        dayRecord.passkeySuccessful++;
+        passkeySuccessfulTotal++;
+      } else {
+        dayRecord.passwordOrResetSuccessful++;
+        passwordResetSuccessfulTotal++;
+      }
+    } else if (isFail) {
+      dayRecord.failed++;
+      dayRecord.total++;
+      totalAttempts++;
+      totalFailed++;
+
+      if (log.details?.toLowerCase().includes('biometric') || log.details?.toLowerCase().includes('timeout') || log.details?.toLowerCase().includes('cancel')) {
+        dayRecord.failedBiometric++;
+        biometricFailedTotal++;
+      } else {
+        dayRecord.failedOther++;
+        otherFailedTotal++;
+      }
+    }
+  }
+
+  // Compute daily success rates
+  let peakDay = { date: '', attempts: 0 };
+  const dailyMetrics = Array.from(dailyMap.values()).map(day => {
+    day.successRate = day.total > 0 ? Math.round((day.successful / day.total) * 1000) / 10 : 100;
+    if (day.total > peakDay.attempts) {
+      peakDay = { date: day.date, attempts: day.total };
+    }
+    return day;
+  });
+
+  const overallSuccessRate = totalAttempts > 0 
+    ? Math.round((totalSuccessful / totalAttempts) * 1000) / 10 
+    : 100;
+
+  const passkeySharePercentage = totalSuccessful > 0 
+    ? Math.round((passkeySuccessfulTotal / totalSuccessful) * 1000) / 10 
+    : 0;
+
+  return {
+    days: daysCount,
+    startDate: computedStartDate,
+    endDate: computedEndDate,
+    totalAttempts,
+    successfulAttempts: totalSuccessful,
+    failedAttempts: totalFailed,
+    successRate: overallSuccessRate,
+    passkeySharePercentage,
+    peakDay,
+    dailyMetrics,
+    factorDistribution: [
+      { name: 'WebAuthn Passkey (Biometric)', value: passkeySuccessfulTotal, color: '#4f46e5' },
+      { name: 'Password / Scoped Link', value: passwordResetSuccessfulTotal, color: '#0ea5e9' },
+    ],
+    failureDistribution: [
+      { name: 'Biometric Timeout / Cancel', value: biometricFailedTotal, color: '#f43f5e' },
+      { name: 'Signature / Challenge Mismatch', value: otherFailedTotal, color: '#fb7185' },
+    ],
+  };
+}
+
+export const get30DayAuditMetrics = (email?: string, days = 30) => getAuditMetrics(email, days);
 
 /**
  * User management
