@@ -155,3 +155,13 @@ export interface CodeRabbitConfig {
   };
 }
 
+export interface GitHubWebhookLog {
+  id: string;
+  timestamp: string;
+  event: string;
+  action?: string;
+  payload: any;
+  statusCode: number;
+  status: 'success' | 'failure';
+}
+

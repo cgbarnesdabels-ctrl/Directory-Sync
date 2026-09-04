@@ -13,7 +13,8 @@ import type {
   CodeRabbitConfig,
   CodeRabbitDeviceBinding,
   CodeRabbitPermissions,
-  CodeRabbitAuditEntry
+  CodeRabbitAuditEntry,
+  GitHubWebhookLog
 } from '../types/github';
 
 const router = Router();
@@ -400,13 +401,21 @@ let pullRequests: GitHubPullRequest[] = [
   }
 ];
 
+// Connected repository info
+let connectedRepoInfo = {
+  repoName: 'Fluffy-octo-succotash',
+  owner: 'dabelstech-creator',
+  repoUrl: 'https://github.com/dabelstech-creator/Fluffy-octo-succotash',
+  defaultBranch: 'main'
+};
+
 // 1. GET /api/github/overview
 router.get('/overview', (req, res) => {
   const passingRuns = workflowRuns.filter(r => r.conclusion === 'success').length;
   const overview: GitHubOverview = {
-    repoName: 'passkey-gateway-ios',
-    owner: 'dabelstech',
-    defaultBranch: 'main',
+    repoName: connectedRepoInfo.repoName,
+    owner: connectedRepoInfo.owner,
+    defaultBranch: connectedRepoInfo.defaultBranch,
     latestCommit: {
       sha: workflowRuns[0]?.commitSha || '7f3a8b1',
       message: workflowRuns[0]?.commitMessage || 'feat: passkey gateway core',
@@ -419,6 +428,28 @@ router.get('/overview', (req, res) => {
     activeWorkflowsCount: 2
   };
   res.json(overview);
+});
+
+// POST /api/github/connect-repo
+router.post('/connect-repo', (req, res) => {
+  const { repoUrl, repoName, owner } = req.body || {};
+  if (repoUrl) {
+    // Parse owner and repoName from URL if possible
+    const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (match) {
+      connectedRepoInfo.owner = match[1];
+      connectedRepoInfo.repoName = match[2].replace(/\.git$/, '');
+      connectedRepoInfo.repoUrl = repoUrl.trim();
+    }
+  }
+  if (repoName) connectedRepoInfo.repoName = repoName.trim();
+  if (owner) connectedRepoInfo.owner = owner.trim();
+
+  res.json({
+    success: true,
+    message: `Successfully connected GitHub repository ${connectedRepoInfo.owner}/${connectedRepoInfo.repoName}`,
+    connectedRepo: connectedRepoInfo
+  });
 });
 
 // 2. GET /api/github/workflow-runs
@@ -1172,6 +1203,59 @@ router.post('/coderabbit/approve-pr', (req, res) => {
     message: `Pull Request #${pr.number} approved successfully by CodeRabbit.`,
     pullRequest: pr
   });
+});
+
+// Webhook logs store
+let webhookLogs: GitHubWebhookLog[] = [];
+
+// POST /api/github/webhook
+router.post('/webhook', (req, res) => {
+  const event = req.headers['x-github-event'] as string || 'unknown';
+  const payload = req.body || {};
+  const action = payload.action;
+  
+  const log: GitHubWebhookLog = {
+    id: `wh-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    timestamp: new Date().toISOString(),
+    event,
+    action,
+    payload,
+    statusCode: 200,
+    status: 'success'
+  };
+  
+  webhookLogs.unshift(log);
+  if (webhookLogs.length > 20) webhookLogs = webhookLogs.slice(0, 20);
+  
+  res.status(200).json({ success: true, message: 'Webhook received' });
+});
+
+// GET /api/github/webhook-logs
+router.get('/webhook-logs', (req, res) => {
+  res.json({ logs: webhookLogs });
+});
+
+// POST /api/github/simulate-webhook
+router.post('/simulate-webhook', (req, res) => {
+  const { event = 'push', payload = {} } = req.body || {};
+  
+  const log: GitHubWebhookLog = {
+    id: `sim-wh-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    event,
+    action: payload.action,
+    payload: {
+      repository: { name: connectedRepoInfo.repoName, owner: { login: connectedRepoInfo.owner } },
+      ...payload
+    },
+    statusCode: 202,
+    status: 'success'
+  };
+  
+  webhookLogs.unshift(log);
+  if (webhookLogs.length > 20) webhookLogs = webhookLogs.slice(0, 20);
+  
+  res.json({ success: true, log });
 });
 
 // POST /api/github/pull-requests/bulk-approve
