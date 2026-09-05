@@ -37,6 +37,18 @@
         "userEmail": { "type": "string" }
       },
       "required": ["service", "lastSyncAt", "status", "userEmail"]
+    },
+    "SyncLog": {
+      "title": "Sync Log",
+      "description": "Historical log of sync operations.",
+      "type": "object",
+      "properties": {
+        "service": { "type": "string" },
+        "status": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "userEmail": { "type": "string" }
+      },
+      "required": ["service", "status", "timestamp", "userEmail"]
     }
   },
   "firestore": {
@@ -51,6 +63,10 @@
     "sync_status": {
       "schema": "SyncStatus",
       "description": "Collection of integration sync states."
+    },
+    "sync_logs": {
+      "schema": "SyncLog",
+      "description": "Collection of historical sync operation logs."
     }
   }
 }

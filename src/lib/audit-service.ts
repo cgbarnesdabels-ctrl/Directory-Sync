@@ -24,6 +24,18 @@ export const logSecurityEvent = async (event: AuditEvent) => {
       createdAt: serverTimestamp()
     });
 
+    // Send event to Svix Webhook
+    fetch('https://play.svix.com/in/bu6f34OEBHZ7ThE9ic3oGXJqddB/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ...event,
+        timestamp: new Date().toISOString()
+      })
+    }).catch(err => console.error('Webhook Error:', err));
+
     // Automation: Create a Keep note for critical security events
     if (event.result === 'Failure') {
       const token = getGoogleAccessToken();
