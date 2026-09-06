@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Dabels Passkey & Workspace Sync Guard",
+  "version": "1.0.0",
+  "description": "Safari iOS Web Extension for WebAuthn passkey attestation and real-time Google Workspace sync conflict resolution.",
+  "default_locale": "en",
+  "icons": {
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Dabels Passkey & Sync Guard",
+    "default_icon": {
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "alarms"
+  ],
+  "host_permissions": [
+    "*://*.google.com/*",
+    "*://*.googleapis.com/*",
+    "*://*.run.app/*",
+    "*://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://drive.google.com/*",
+        "*://mail.google.com/*",
+        "*://calendar.google.com/*",
+        "*://keep.google.com/*",
+        "*://*.run.app/*",
+        "*://localhost/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}

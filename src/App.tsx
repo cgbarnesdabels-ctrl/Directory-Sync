@@ -15,26 +15,30 @@ import {
   ArrowRight,
   Sparkles,
   Lock,
-  GitBranch
+  GitBranch,
+  Video
 } from 'lucide-react';
 import { Header } from './components/Header';
 import { PasskeyAuth } from './components/PasskeyAuth';
 import { PasswordResetFlow } from './components/PasswordResetFlow';
 import { CredentialsAudit } from './components/CredentialsAudit';
-import { IosIntegrationGuide } from './components/IosIntegrationGuide';
+import { MobileIntegrationSuite } from './components/MobileIntegrationSuite';
 import { ApiExplorer } from './components/ApiExplorer';
 import { GitHubCiPrDashboard } from './components/GitHubCiPrDashboard';
 import { SecurityOperationsCenter } from './components/SecurityOperationsCenter';
 import { DashboardWidget } from './components/DashboardWidget';
+import { GoogleWorkspaceHub } from './components/GoogleWorkspaceHub';
 import { BiometricScreenOverlay } from './components/BiometricScreenOverlay';
 import { FloatingAuthCiWidget } from './components/FloatingAuthCiWidget';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { AuthOverlayProvider } from './context/AuthOverlayContext';
 import { ToastProvider } from './context/ToastContext';
 import type { UserSession, RegisteredPasskey } from './types/auth';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    'passkeys' | 'reset-flow' | 'credentials' | 'github-ci' | 'ios-guide' | 'api-explorer' | 'soc'
+    'passkeys' | 'workspace' | 'reset-flow' | 'credentials' | 'github-ci' | 'ios-guide' | 'api-explorer' | 'soc'
   >('passkeys');
 
   // URL Query Parameters for Scope Redirect Handling
@@ -106,8 +110,8 @@ export default function App() {
         />
 
         {/* Main Container */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-          <DashboardWidget />
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-28 sm:pb-8 space-y-8">
+          <DashboardWidget onNavigateToWorkspace={() => setActiveTab('workspace')} />
           
           {/* Navigation Tabs */}
           <div className="flex items-center justify-between border-b border-slate-200 overflow-x-auto pb-px">
@@ -124,6 +128,21 @@ export default function App() {
               >
                 <Fingerprint className="w-4 h-4" />
                 <span>Passkey Authentication</span>
+              </button>
+
+              <button
+                id="tab-workspace"
+                type="button"
+                onClick={() => setActiveTab('workspace')}
+                className={`py-3 px-3 sm:px-4 text-xs sm:text-sm font-semibold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                  activeTab === 'workspace'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <Video className="w-4 h-4 text-emerald-600" />
+                <span>Google Workspace Hub</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700">Live</span>
               </button>
 
               <button
@@ -182,8 +201,9 @@ export default function App() {
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                 }`}
               >
-                <Smartphone className="w-4 h-4" />
-                <span>iOS Swift Integration</span>
+                <Smartphone className="w-4 h-4 text-sky-500" />
+                <span>Mobile (iOS &amp; Android) Suite</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">Cross-Platform</span>
               </button>
 
               <button
@@ -228,6 +248,8 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'workspace' && <GoogleWorkspaceHub />}
+
           {activeTab === 'reset-flow' && (
             <PasswordResetFlow
               initialEmail={initialResetEmail}
@@ -244,7 +266,7 @@ export default function App() {
 
           {activeTab === 'github-ci' && <GitHubCiPrDashboard />}
 
-          {activeTab === 'ios-guide' && <IosIntegrationGuide />}
+          {activeTab === 'ios-guide' && <MobileIntegrationSuite />}
 
           {activeTab === 'api-explorer' && <ApiExplorer />}
 
@@ -256,6 +278,12 @@ export default function App() {
 
         {/* Floating Quick Auth & CI Widget */}
         <FloatingAuthCiWidget onNavigateToCiTab={() => setActiveTab('github-ci')} />
+
+        {/* Offline PWA Connectivity Indicator */}
+        <OfflineIndicator />
+
+        {/* Mobile iOS & Android Bottom Navigation Bar */}
+        <MobileBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
 
         {/* Footer */}
         <footer className="border-t border-slate-200 bg-white py-6 mt-12 text-center text-xs text-slate-500">

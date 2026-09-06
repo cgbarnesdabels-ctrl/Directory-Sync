@@ -6,9 +6,13 @@
 import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from './firebase';
 
-export type IntegrationService = 'drive' | 'calendar' | 'gmail' | 'chat' | 'keep';
+export type IntegrationService = 'drive' | 'calendar' | 'gmail' | 'chat' | 'keep' | 'meet';
 
-export const updateSyncStatus = async (service: IntegrationService, status: 'active' | 'error' | 'pending') => {
+export const updateSyncStatus = async (
+  service: IntegrationService, 
+  status: 'active' | 'error' | 'pending',
+  errorDetails?: { errorCode?: string | number; errorMessage?: string; conflictType?: string }
+) => {
   const user = auth.currentUser;
   if (!user || !user.email) return;
 
@@ -20,6 +24,8 @@ export const updateSyncStatus = async (service: IntegrationService, status: 'act
       status,
       lastSyncAt: now,
       userEmail: user.email,
+      errorCode: errorDetails?.errorCode ? String(errorDetails.errorCode) : null,
+      errorMessage: errorDetails?.errorMessage || null,
       updatedAt: serverTimestamp()
     }, { merge: true });
 
@@ -28,6 +34,9 @@ export const updateSyncStatus = async (service: IntegrationService, status: 'act
       status,
       timestamp: now,
       userEmail: user.email,
+      errorCode: errorDetails?.errorCode ? String(errorDetails.errorCode) : null,
+      errorMessage: errorDetails?.errorMessage || null,
+      conflictType: errorDetails?.conflictType || null,
       createdAt: serverTimestamp()
     });
   } catch (error) {

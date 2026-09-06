@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.dabelstech.passkey",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:7F:0E:52:D7:1E:2E:CB:5B:CD:00:2E:3D:FD:9C:2A:8C:38:CB:00:6B:5E:2B:6F:02:4B:B4:79:33:67"
+      ]
+    }
+  }
+]

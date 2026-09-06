@@ -6,6 +6,7 @@
 import React from 'react';
 import { Shield, KeyRound, Smartphone, CheckCircle2, AlertCircle, LogOut, UserCheck } from 'lucide-react';
 import type { UserSession } from '../types/auth';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface HeaderProps {
   currentRpId: string;
@@ -79,6 +80,9 @@ export const Header: React.FC<HeaderProps> = ({
                 <option value="dabelstech.com">dabelstech.com (Prod)</option>
               </select>
             </div>
+
+            {/* PWA Mobile Install Action Button */}
+            <PWAInstallButton />
 
             {/* User Session status */}
             {currentUser ? (

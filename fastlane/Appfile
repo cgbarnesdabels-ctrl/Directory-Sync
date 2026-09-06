@@ -1,0 +1,4 @@
+app_identifier("com.dabelstech.passkey")
+apple_id(ENV["APPLE_ID"] || "dabelstech@moredesa.com")
+team_id(ENV["APPLE_TEAM_ID"] || "TEAMID12345")
+itc_team_id(ENV["ITC_TEAM_ID"] || "ITC12345")

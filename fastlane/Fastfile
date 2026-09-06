@@ -1,0 +1,57 @@
+# Fastfile for Dabels Tech Passkey Gateway
+# Automatically builds, signs, and uploads iOS builds to Apple TestFlight
+# and sends invite to jessicabarbiej@icloud.com
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and upload iOS app to Apple TestFlight, inviting jessicabarbiej@icloud.com"
+  lane :testflight do |options|
+    tester_email = options[:tester_email] || ENV["TESTER_EMAIL"] || "jessicabarbiej@icloud.com"
+    app_version  = options[:version] || "1.0.0"
+    
+    UI.message("🚀 Starting Fastlane TestFlight distribution...")
+    UI.message("Target Tester Email: #{tester_email}")
+    UI.message("App Identifier: com.dabelstech.passkey")
+
+    # 1. Setup App Store Connect API Key
+    if ENV["APP_STORE_CONNECT_KEY_ID"] && ENV["APP_STORE_CONNECT_ISSUER_ID"]
+      app_store_connect_api_key(
+        key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
+        issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+        key_filepath: "~/.appstoreconnect/private_keys/AuthKey_#{ENV["APP_STORE_CONNECT_KEY_ID"]}.p8",
+        duration: 1200,
+        in_house: false
+      )
+    end
+
+    # 2. Build iOS App Archive & IPA
+    build_app(
+      scheme: "DabelsPasskey",
+      export_method: "app-store",
+      clean: true,
+      output_directory: "./build",
+      output_name: "DabelsPasskey.ipa",
+      silent: false
+    )
+
+    # 3. Upload to TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      changelog: "Dabels Tech Passkey Gateway iOS build for #{tester_email}",
+      distribute_external: true,
+      groups: ["Beta Testers"],
+      notify_external_testers: true
+    )
+
+    # 4. Invite & Add iCloud Tester
+    pilot(
+      email: tester_email,
+      first_name: "Jessica",
+      last_name: "Barbie",
+      groups: ["Beta Testers"]
+    )
+
+    UI.success("✅ TestFlight deployment successful! Invitation email dispatched to #{tester_email}")
+  end
+end

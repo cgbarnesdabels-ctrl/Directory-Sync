@@ -1,0 +1,20 @@
+{
+  "webcredentials": {
+    "apps": [
+      "TEAMID12345.com.dabelstech.passkey"
+    ]
+  },
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID12345.com.dabelstech.passkey",
+        "paths": [
+          "/auth/*",
+          "/reset-password/*",
+          "/passkeys/*"
+        ]
+      }
+    ]
+  }
+}

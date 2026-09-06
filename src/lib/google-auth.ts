@@ -19,7 +19,7 @@ provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
 provider.addScope('https://www.googleapis.com/auth/gmail.modify');
 provider.addScope('https://www.googleapis.com/auth/calendar.events');
 provider.addScope('https://www.googleapis.com/auth/chat.messages.create');
-provider.addScope('https://www.googleapis.com/auth/keep');
+provider.addScope('https://www.googleapis.com/auth/meetings.space.created');
 
 // Cache the access token in memory.
 let cachedAccessToken: string | null = null;

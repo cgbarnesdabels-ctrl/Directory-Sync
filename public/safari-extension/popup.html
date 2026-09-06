@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dabels Passkey & Sync Guard</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #6366f1;
+      --success: #10b981;
+      --error: #ef4444;
+      --warning: #f59e0b;
+      --border: rgba(255, 255, 255, 0.1);
+    }
+    body {
+      width: 330px;
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.4);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .service-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .service-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .service-status {
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+    .status-dot.error { background: var(--error); }
+    .status-dot.warning { background: var(--warning); }
+    .ai-card {
+      background: linear-gradient(135deg, rgba(79, 70, 229, 0.25), rgba(147, 51, 234, 0.25));
+      border: 1px solid rgba(129, 140, 248, 0.3);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+    .ai-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #e0e7ff;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .ai-desc {
+      font-size: 11px;
+      color: #cbd5e1;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+    .btn {
+      width: 100%;
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      margin-top: 6px;
+    }
+    .footer {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">
+      <span>🛡️ Passkey Guard</span>
+    </div>
+    <span class="badge">Safari iOS</span>
+  </div>
+
+  <div class="grid">
+    <div class="service-card">
+      <span class="service-name">Google Drive</span>
+      <span class="service-status" id="status-drive"><span class="status-dot"></span> Active</span>
+    </div>
+    <div class="service-card">
+      <span class="service-name">Gmail</span>
+      <span class="service-status" id="status-gmail"><span class="status-dot"></span> Active</span>
+    </div>
+    <div class="service-card">
+      <span class="service-name">Calendar</span>
+      <span class="service-status" id="status-calendar"><span class="status-dot"></span> Active</span>
+    </div>
+    <div class="service-card">
+      <span class="service-name">Keep Notes</span>
+      <span class="service-status" id="status-keep"><span class="status-dot"></span> Active</span>
+    </div>
+  </div>
+
+  <div class="ai-card">
+    <div class="ai-title">
+      <span>✨ Gemini Conflict Resolver</span>
+      <span style="font-size: 10px; opacity: 0.8;">3.8 Flash</span>
+    </div>
+    <div class="ai-desc" id="conflict-desc">
+      All Google Workspace APIs in sync. Zero active HTTP 409/403 lock contentions.
+    </div>
+    <button class="btn" id="btn-resolve">
+      ⚡ Run Gemini Conflict Audit
+    </button>
+  </div>
+
+  <button class="btn btn-secondary" id="btn-open-app">
+    Open Passkey Web Gateway ↗
+  </button>
+
+  <div class="footer">
+    Hardware-bound attestation • iOS 15+ WebExtension
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

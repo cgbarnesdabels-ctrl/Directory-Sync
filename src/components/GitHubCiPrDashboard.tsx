@@ -39,7 +39,9 @@ import {
   Code,
   MonitorPlay,
   Zap,
-  RotateCcw
+  RotateCcw,
+  Smartphone,
+  Apple
 } from 'lucide-react';
 import type { 
   GitHubWorkflowRun, 
@@ -53,6 +55,7 @@ import type {
 import { useAuthOverlay } from '../context/AuthOverlayContext';
 import { useToast } from '../context/ToastContext';
 import { CodeRabbitDeviceBinding } from './CodeRabbitDeviceBinding';
+import { TestFlightDistributionSuite } from './TestFlightDistributionSuite';
 
 export const GitHubCiPrDashboard: React.FC = () => {
   const { triggerSignIn, setPreferMode } = useAuthOverlay();
@@ -61,8 +64,8 @@ export const GitHubCiPrDashboard: React.FC = () => {
   const [runs, setRuns] = useState<GitHubWorkflowRun[]>([]);
   const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
   const [selectedRun, setSelectedRun] = useState<GitHubWorkflowRun | null>(null);
-  const [activeTab, setActiveTab] = useState<'workflows' | 'pull-requests' | 'coderabbit' | 'workflow-code' | 'oauth-config' | 'webhook-debugger' | 'sso-enrollment'>('workflows');
-  const [selectedWorkflowFile, setSelectedWorkflowFile] = useState<'ci.yml' | 'pr-checks.yml' | 'coderabbit.yml'>('ci.yml');
+  const [activeTab, setActiveTab] = useState<'workflows' | 'pull-requests' | 'testflight' | 'coderabbit' | 'workflow-code' | 'oauth-config' | 'webhook-debugger' | 'sso-enrollment'>('workflows');
+  const [selectedWorkflowFile, setSelectedWorkflowFile] = useState<'ci.yml' | 'pr-checks.yml' | 'coderabbit.yml' | 'testflight.yml'>('ci.yml');
   const [isDispatching, setIsDispatching] = useState(false);
   const [isCheckingPr, setIsCheckingPr] = useState(false);
   const [copiedFile, setCopiedFile] = useState(false);
@@ -675,6 +678,55 @@ jobs:
           echo "Submitting formal PR Review State: APPROVED"
           echo "Summary: All WebAuthn residentKey constraints and security gates passed."`;
 
+  const testflightYmlCode = `name: iOS App TestFlight Distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      tester_email:
+        description: 'TestFlight iCloud tester email to invite'
+        required: true
+        default: 'jessicabarbiej@icloud.com'
+        type: string
+      release_notes:
+        description: 'Release notes for TestFlight beta testers'
+        required: false
+        default: 'Dabels Tech Passkey Gateway mobile client build for TestFlight tester jessicabarbiej@icloud.com'
+        type: string
+      build_type:
+        description: 'Build configuration (beta / release)'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - release
+          - internal
+
+jobs:
+  build-and-deploy-testflight:
+    name: Build & Deploy iOS App to Apple TestFlight
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 15
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+      - name: Setup Fastlane & Ruby
+        run: gem install fastlane --no-document
+      - name: App Store Connect API Authentication
+        run: echo "Decoded App Store Connect AuthKey for Fastlane pilot"
+      - name: Build & Archive iOS App (.xcarchive)
+        run: fastlane build_app scheme:DabelsPasskey export_method:app-store
+      - name: Upload IPA to TestFlight
+        run: fastlane pilot upload --skip_waiting_for_build_processing true
+      - name: Invite iCloud Tester (jessicabarbiej@icloud.com)
+        run: |
+          fastlane pilot add \\
+            --email "jessicabarbiej@icloud.com" \\
+            --first_name "Jessica" \\
+            --last_name "Barbie" \\
+            --groups "Beta Testers"`;
+
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedFile(true);
@@ -828,6 +880,24 @@ jobs:
         >
           <GitPullRequest className="w-4 h-4" />
           <span>Pull Requests &amp; PR Gates ({pullRequests.length})</span>
+        </button>
+
+        <button
+          id="subtab-testflight"
+          type="button"
+          onClick={() => setActiveTab('testflight')}
+          className={`pb-3 border-b-2 flex items-center gap-2 cursor-pointer transition-colors ${
+            activeTab === 'testflight'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Smartphone className="w-4 h-4 text-indigo-500" />
+          <span>TestFlight iOS Distribution</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-800 flex items-center gap-1 font-mono">
+            <Apple className="w-3 h-3" />
+            jessicabarbiej@icloud.com
+          </span>
         </button>
 
         <button
@@ -1182,6 +1252,17 @@ jobs:
         </div>
       )}
 
+      {/* Subtab: Apple TestFlight iOS Distribution */}
+      {activeTab === 'testflight' && (
+        <TestFlightDistributionSuite
+          onWorkflowTriggered={fetchData}
+          onViewWorkflowYaml={(filename) => {
+            setSelectedWorkflowFile(filename as any);
+            setActiveTab('workflow-code');
+          }}
+        />
+      )}
+
       {/* Subtab 3: CodeRabbit & Device Binding */}
       {activeTab === 'coderabbit' && (
         <div className="space-y-6">
@@ -1285,6 +1366,19 @@ jobs:
                 <Sparkles className="w-3 h-3 text-indigo-400" />
                 <span>.github/workflows/coderabbit.yml</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedWorkflowFile('testflight.yml')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedWorkflowFile === 'testflight.yml'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                <Smartphone className="w-3 h-3 text-indigo-400" />
+                <span>.github/workflows/testflight.yml</span>
+              </button>
             </div>
 
             <button
@@ -1294,6 +1388,8 @@ jobs:
                   ? ciYmlCode 
                   : selectedWorkflowFile === 'pr-checks.yml' 
                   ? prChecksCode 
+                  : selectedWorkflowFile === 'testflight.yml'
+                  ? testflightYmlCode
                   : codeRabbitYmlCode
               )}
               className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
@@ -1318,6 +1414,8 @@ jobs:
                 ? ciYmlCode 
                 : selectedWorkflowFile === 'pr-checks.yml' 
                 ? prChecksCode 
+                : selectedWorkflowFile === 'testflight.yml'
+                ? testflightYmlCode
                 : codeRabbitYmlCode}
             </pre>
           </div>

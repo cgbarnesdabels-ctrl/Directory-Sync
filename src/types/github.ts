@@ -23,12 +23,30 @@ export interface GitHubWorkflowRun {
   commitSha: string;
   commitMessage: string;
   author: string;
-  event: 'push' | 'pull_request' | 'workflow_dispatch';
+  event: 'push' | 'pull_request' | 'workflow_dispatch' | 'schedule' | 'auto_run';
   createdAt: string;
   completedAt?: string;
   durationSeconds: number;
   steps: GitHubWorkflowStep[];
   pullRequestNumber?: number;
+  progressPercentage?: number;
+  activeStepIndex?: number;
+  estimatedRemainingSeconds?: number;
+}
+
+export interface GitHubAutoRunConfig {
+  enabled: boolean;
+  intervalSeconds: number;
+  workflowFile: string;
+  workflowName: string;
+  branch: string;
+  nextRunAt?: string;
+  lastRunAt?: string;
+  totalAutoRuns: number;
+  triggerOnPr: boolean;
+  triggerOnPush: boolean;
+  cronExpression?: string;
+  status: 'active' | 'paused' | 'running';
 }
 
 export interface GitHubPullRequest {
@@ -174,5 +192,33 @@ export interface SSOEnrollment {
   deviceId: string;
   deviceType: 'ios' | 'macos' | 'fido2';
   status: 'active' | 'revoked';
+}
+
+export interface TestFlightTester {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  status: 'invited' | 'accepted' | 'installed' | 'active';
+  group: string;
+  invitedAt: string;
+  lastActive?: string;
+}
+
+export interface TestFlightDeployment {
+  appId: string;
+  bundleId: string;
+  appName: string;
+  version: string;
+  buildNumber: number;
+  status: 'ready' | 'processing' | 'uploading' | 'completed' | 'failed';
+  uploadedAt: string;
+  testers: TestFlightTester[];
+  primaryTesterEmail: string;
+  exportMethod: string;
+  releaseNotes: string;
+  appStoreConnectKeyConfigured: boolean;
+  provisioningProfile: string;
+  lastRunId?: string;
+  invitationSent: boolean;
 }
 
