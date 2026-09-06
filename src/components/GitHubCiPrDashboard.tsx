@@ -41,8 +41,17 @@ import {
   Zap,
   RotateCcw,
   Smartphone,
-  Apple
+  Apple,
+  TrendingUp
 } from 'lucide-react';
+import { 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  Tooltip 
+} from 'recharts';
 import type { 
   GitHubWorkflowRun, 
   GitHubPullRequest, 
@@ -82,6 +91,33 @@ export const GitHubCiPrDashboard: React.FC = () => {
   const [allowedUrls, setAllowedUrls] = useState<string[]>([]);
   const [ssoEnrollments, setSsoEnrollments] = useState<SSOEnrollment[]>([]);
   const [isEnrollingSso, setIsEnrollingSso] = useState(false);
+
+  // Calculate historical Build Success Rate sparkline data from GitHub runs
+  const sparklineData = React.useMemo(() => {
+    if (!runs || runs.length === 0) return [];
+    // Sort runs chronologically (oldest to newest)
+    const sorted = [...runs].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    
+    let cumulativeSuccesses = 0;
+    return sorted.map((run, index) => {
+      const isSuccess = run.conclusion === 'success' || (run.status === 'completed' && run.conclusion !== 'failure');
+      if (isSuccess) cumulativeSuccesses++;
+      const currentRate = Math.round((cumulativeSuccesses / (index + 1)) * 100);
+      
+      return {
+        runNumber: index + 1,
+        name: run.workflowName || 'Workflow',
+        shortSha: run.commitSha?.slice(0, 7) || 'head',
+        branch: run.branch || 'main',
+        rate: currentRate,
+        instantSuccess: isSuccess ? 100 : 0,
+        status: run.status === 'in_progress' ? 'Running' : isSuccess ? 'Success' : 'Failed',
+        duration: run.durationSeconds || 15,
+        time: new Date(run.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: new Date(run.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
+      };
+    });
+  }, [runs]);
 
   // Screen Wake Lock Effect
   useEffect(() => {
@@ -807,6 +843,113 @@ jobs:
             )}
             <span>Bulk Rerun All Together</span>
           </button>
+        </div>
+      </div>
+
+      {/* Build Success Rate Sparkline Chart Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs transition-all">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900">Build Success Rate Trend</h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1 font-mono">
+                  <TrendingUp className="w-3 h-3" />
+                  {overview?.passingRate || (sparklineData.length > 0 ? sparklineData[sparklineData.length - 1].rate : 100)}% Passing
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Real-time historical workflow execution telemetry from GitHub API
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 text-xs">
+            <div className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80">
+              <span className="text-slate-400 block text-[9px] uppercase font-bold tracking-wider">Total Runs</span>
+              <span className="font-bold text-slate-800 text-sm font-mono">{runs.length}</span>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-emerald-50/60 border border-emerald-200/60">
+              <span className="text-emerald-600 block text-[9px] uppercase font-bold tracking-wider">Passed</span>
+              <span className="font-bold text-emerald-700 text-sm font-mono">
+                {runs.filter(r => r.conclusion === 'success' || r.status === 'completed').length}
+              </span>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-rose-50/60 border border-rose-200/60">
+              <span className="text-rose-600 block text-[9px] uppercase font-bold tracking-wider">Failed</span>
+              <span className="font-bold text-rose-700 text-sm font-mono">
+                {runs.filter(r => r.conclusion === 'failure').length}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Recharts Area Sparkline */}
+        <div className="h-28 w-full mt-2">
+          {sparklineData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={sparklineData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="buildSuccessGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="shortSha" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  content={({ active, payload }: any) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-slate-900 text-white text-xs p-3 rounded-xl shadow-xl border border-slate-700 font-mono space-y-1">
+                          <div className="flex items-center justify-between gap-3 text-slate-300 font-sans">
+                            <span className="font-bold text-white truncate max-w-[160px]">{data.name}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              data.status === 'Success' 
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            }`}>
+                              {data.status}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-200 flex items-center justify-between gap-4 pt-1">
+                            <span>Success Rate:</span>
+                            <span className="text-emerald-400 font-bold">{data.rate}%</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 flex items-center justify-between gap-4">
+                            <span>Commit:</span>
+                            <span className="text-indigo-300 font-bold">{data.shortSha} ({data.branch})</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 flex items-center justify-between gap-4">
+                            <span>Timestamp:</span>
+                            <span>{data.date} {data.time}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="rate"
+                  stroke="#10b981"
+                  strokeWidth={2.5}
+                  fillOpacity={1}
+                  fill="url(#buildSuccessGradient)"
+                  activeDot={{ r: 5, fill: '#10b981', stroke: '#ffffff', strokeWidth: 2 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-xs text-slate-400 font-mono">
+              Fetching historical workflow execution data from GitHub API...
+            </div>
+          )}
         </div>
       </div>
 

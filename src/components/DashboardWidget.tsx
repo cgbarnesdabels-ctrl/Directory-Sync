@@ -91,6 +91,9 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = ({ onNavigateToWo
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'conflicts'>('overview');
   const [syncs, setSyncs] = useState<Record<string, SyncState>>({});
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
+  const [lastLogId, setLastLogId] = useState<string | null>(null);
+  const [isNewLogFlashing, setIsNewLogFlashing] = useState(false);
+  const [newLogCount, setNewLogCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -127,7 +130,20 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = ({ onNavigateToWo
         );
 
         const unsubscribeLogs = onSnapshot(qLogs, (snapshot) => {
-          setSyncLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SyncLog)));
+          const fetchedLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SyncLog));
+          setSyncLogs(fetchedLogs);
+
+          if (fetchedLogs.length > 0) {
+            const newest = fetchedLogs[0];
+            setLastLogId(prevId => {
+              if (prevId && newest.id !== prevId) {
+                setIsNewLogFlashing(true);
+                setNewLogCount(count => count + 1);
+                setTimeout(() => setIsNewLogFlashing(false), 2000);
+              }
+              return newest.id;
+            });
+          }
         });
 
         return () => {
@@ -336,7 +352,11 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = ({ onNavigateToWo
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+    <div className={`bg-white rounded-2xl border transition-all duration-700 shadow-xs overflow-hidden ${
+      isNewLogFlashing 
+        ? 'border-indigo-400 ring-2 ring-indigo-400/40 shadow-indigo-100/50 bg-indigo-50/10 scale-[1.002]' 
+        : 'border-slate-200'
+    }`}>
       {/* Widget Top Header */}
       <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -345,7 +365,13 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = ({ onNavigateToWo
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              Workspace Sync Status &amp; Conflict Guard
+              <span>Workspace Sync Status &amp; Conflict Guard</span>
+              {isNewLogFlashing && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-300 animate-pulse flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-ping" />
+                  Live Sync Log Received
+                </span>
+              )}
             </h3>
             <p className="text-[11px] text-slate-400">
               Bi-directional Google Workspace sync with Gemini automated conflict resolution
@@ -513,11 +539,19 @@ export const DashboardWidget: React.FC<DashboardWidgetProps> = ({ onNavigateToWo
                 <p className="text-xs">No recent sync operations recorded in Firestore.</p>
               </div>
             ) : (
-              syncLogs.map(log => {
+              syncLogs.map((log, idx) => {
                 const serviceData = getServiceData(log.service);
                 const Icon = serviceData.icon;
+                const isNewestItem = idx === 0 && isNewLogFlashing;
                 return (
-                  <div key={log.id} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                  <div 
+                    key={log.id} 
+                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-500 ${
+                      isNewestItem 
+                        ? 'bg-indigo-50/90 border-indigo-300 ring-1 ring-indigo-200/80 shadow-xs scale-[1.005]' 
+                        : 'border-slate-100 hover:bg-slate-50'
+                    }`}
+                  >
                     <div className="flex items-center gap-3">
                       <div className={`p-1.5 rounded-lg ${serviceData.bg} ${serviceData.color}`}>
                         <Icon className="w-3.5 h-3.5" />
