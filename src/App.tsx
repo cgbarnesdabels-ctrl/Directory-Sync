@@ -16,7 +16,9 @@ import {
   Sparkles,
   Lock,
   GitBranch,
-  Video
+  Video,
+  Bot,
+  QrCode
 } from 'lucide-react';
 import { Header } from './components/Header';
 import { PasskeyAuth } from './components/PasskeyAuth';
@@ -28,6 +30,9 @@ import { GitHubCiPrDashboard } from './components/GitHubCiPrDashboard';
 import { SecurityOperationsCenter } from './components/SecurityOperationsCenter';
 import { DashboardWidget } from './components/DashboardWidget';
 import { GoogleWorkspaceHub } from './components/GoogleWorkspaceHub';
+import { AutomationBot } from './components/AutomationBot';
+import { IosWidgetPreviewFix } from './components/IosWidgetPreviewFix';
+import { UniversalDeviceFlow } from './components/UniversalDeviceFlow';
 import { BiometricScreenOverlay } from './components/BiometricScreenOverlay';
 import { FloatingAuthCiWidget } from './components/FloatingAuthCiWidget';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -38,7 +43,7 @@ import type { UserSession, RegisteredPasskey } from './types/auth';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    'passkeys' | 'workspace' | 'reset-flow' | 'credentials' | 'github-ci' | 'ios-guide' | 'api-explorer' | 'soc'
+    'passkeys' | 'workspace' | 'reset-flow' | 'credentials' | 'github-ci' | 'ios-guide' | 'api-explorer' | 'soc' | 'automation-bot' | 'ios-widget-fix' | 'device-flow'
   >('passkeys');
 
   // URL Query Parameters for Scope Redirect Handling
@@ -233,6 +238,51 @@ export default function App() {
                 <ShieldCheck className="w-4 h-4" />
                 <span>Security Operations</span>
               </button>
+
+              <button
+                id="tab-automation-bot"
+                type="button"
+                onClick={() => setActiveTab('automation-bot')}
+                className={`py-3 px-3 sm:px-4 text-xs sm:text-sm font-semibold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                  activeTab === 'automation-bot'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <Bot className="w-4 h-4 text-indigo-500" />
+                <span>Automation Bot</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 font-mono">AI</span>
+              </button>
+
+              <button
+                id="tab-ios-widget-fix"
+                type="button"
+                onClick={() => setActiveTab('ios-widget-fix')}
+                className={`py-3 px-3 sm:px-4 text-xs sm:text-sm font-semibold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                  activeTab === 'ios-widget-fix'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <Smartphone className="w-4 h-4 text-sky-600" />
+                <span>iOS Widget &amp; Fix Preview</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 font-mono">iOS</span>
+              </button>
+
+              <button
+                id="tab-device-flow"
+                type="button"
+                onClick={() => setActiveTab('device-flow')}
+                className={`py-3 px-3 sm:px-4 text-xs sm:text-sm font-semibold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                  activeTab === 'device-flow'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <QrCode className="w-4 h-4 text-emerald-600" />
+                <span>Universal Device Flow</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 font-mono">RFC 8628</span>
+              </button>
             </nav>
           </div>
 
@@ -271,6 +321,12 @@ export default function App() {
           {activeTab === 'api-explorer' && <ApiExplorer />}
 
           {activeTab === 'soc' && <SecurityOperationsCenter />}
+
+          {activeTab === 'automation-bot' && <AutomationBot />}
+
+          {activeTab === 'ios-widget-fix' && <IosWidgetPreviewFix />}
+
+          {activeTab === 'device-flow' && <UniversalDeviceFlow />}
         </main>
 
         {/* Global Biometric Screen Overlay (Pop & PiP) */}

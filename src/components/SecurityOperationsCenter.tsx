@@ -17,7 +17,13 @@ import {
   RefreshCw,
   ExternalLink,
   ChevronRight,
-  Database
+  Database,
+  Fingerprint,
+  CheckCircle2,
+  XCircle,
+  Filter,
+  Search,
+  ShieldAlert
 } from 'lucide-react';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -32,6 +38,10 @@ export const SecurityOperationsCenter: React.FC = () => {
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
   const [isLoadingGmail, setIsLoadingGmail] = useState(false);
   const [isActionPending, setIsActionPending] = useState<string | null>(null);
+
+  // Biometric log feed filters state
+  const [biometricFilter, setBiometricFilter] = useState<'all' | 'success' | 'failed'>('all');
+  const [biometricSearch, setBiometricSearch] = useState('');
 
   // Form states
   const [reportEmail, setReportEmail] = useState('dabelstech@moredesa.com');
@@ -298,6 +308,144 @@ export const SecurityOperationsCenter: React.FC = () => {
                   <span>Save Security Note</span>
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* Dedicated Real-Time Biometric Authentication Log Feed */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center border border-indigo-100">
+                  <Fingerprint className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span>Biometric &amp; Passkey Authentication Feed</span>
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-100 text-emerald-800">
+                      Live Telemetry
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Real-time capture of successful and failed biometric attempts from overlays and passkey authenticators.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                  {(['all', 'success', 'failed'] as const).map((filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setBiometricFilter(filter)}
+                      className={`px-3 py-1 text-xs font-semibold rounded-lg capitalize transition-all cursor-pointer ${
+                        biometricFilter === filter 
+                          ? 'bg-white text-slate-900 shadow-xs' 
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Search Input Bar */}
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={biometricSearch}
+                onChange={(e) => setBiometricSearch(e.target.value)}
+                placeholder="Search by email, device type, or authentication result..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+              />
+            </div>
+
+            {/* Log Feed Items */}
+            <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+              {isLoadingLogs ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <RefreshCw className="w-6 h-6 text-indigo-400 animate-spin" />
+                  <p className="text-xs text-slate-400">Loading biometric attempts...</p>
+                </div>
+              ) : logs.filter((log) => {
+                const matchesFilter = 
+                  biometricFilter === 'all' || 
+                  (biometricFilter === 'success' && log.result === 'Success') || 
+                  (biometricFilter === 'failed' && log.result !== 'Success');
+                
+                const matchesSearch = 
+                  !biometricSearch || 
+                  log.email?.toLowerCase().includes(biometricSearch.toLowerCase()) ||
+                  log.deviceType?.toLowerCase().includes(biometricSearch.toLowerCase()) ||
+                  log.type?.toLowerCase().includes(biometricSearch.toLowerCase());
+
+                return matchesFilter && matchesSearch;
+              }).length === 0 ? (
+                <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl py-12 flex flex-col items-center justify-center gap-2">
+                  <ShieldAlert className="w-8 h-8 text-slate-300" />
+                  <p className="text-xs text-slate-500 font-medium">No matching biometric authentication logs found.</p>
+                </div>
+              ) : (
+                logs.filter((log) => {
+                  const matchesFilter = 
+                    biometricFilter === 'all' || 
+                    (biometricFilter === 'success' && log.result === 'Success') || 
+                    (biometricFilter === 'failed' && log.result !== 'Success');
+                  
+                  const matchesSearch = 
+                    !biometricSearch || 
+                    log.email?.toLowerCase().includes(biometricSearch.toLowerCase()) ||
+                    log.deviceType?.toLowerCase().includes(biometricSearch.toLowerCase()) ||
+                    log.type?.toLowerCase().includes(biometricSearch.toLowerCase());
+
+                  return matchesFilter && matchesSearch;
+                }).map((log) => {
+                  const isSuccess = log.result === 'Success';
+                  return (
+                    <div 
+                      key={log.id} 
+                      className={`p-4 rounded-xl border transition-all flex items-center justify-between gap-4 ${
+                        isSuccess 
+                          ? 'bg-emerald-50/40 border-emerald-200/80 hover:bg-emerald-50/70' 
+                          : 'bg-rose-50/40 border-rose-200/80 hover:bg-rose-50/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                          isSuccess ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                        }`}>
+                          {isSuccess ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-900">{log.email || 'dabelstech@moredesa.com'}</span>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                              isSuccess ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                            }`}>
+                              {log.result || 'Success'}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 block font-mono mt-0.5">
+                            Type: <strong className="text-slate-700">{log.type || 'Passkey Biometric'}</strong> &bull; Device: <strong className="text-slate-700">{log.deviceType || 'Hardware Attested'}</strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-[11px] font-mono text-slate-400 block">
+                          {new Date(log.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </span>
+                        <span className="text-[9px] text-indigo-600 font-bold uppercase tracking-wider block mt-0.5">
+                          Verified Overlay
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
